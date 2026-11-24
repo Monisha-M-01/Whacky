@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { ChatResponse, PendingAction, BlockedAlert, ToolCallResult } from '../api';
 import { api } from '../api';
-import { Mail, Calendar, FileText, Folder, Send, Check, X, ShieldAlert, Sparkles, Clock, AlertTriangle } from './Icons';
+import { Calendar, FileText, Folder, Send, Check, X, ShieldAlert, Sparkles, Clock, AlertTriangle } from './Icons';
 
 interface ChatEntry {
   id: number;
