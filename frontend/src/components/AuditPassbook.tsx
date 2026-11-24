@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { AuditEntry } from '../api';
-import { ShieldCheck, Download, ChevronDown, ChevronRight, Clock } from './Icons';
+import { Shield, ShieldCheck, Download, ChevronDown, ChevronRight, Clock } from './Icons';
 
 interface AuditPassbookProps {
   entries: AuditEntry[];
@@ -87,7 +87,10 @@ export default function AuditPassbook({ entries }: AuditPassbookProps) {
   const [expandedCollapsed, setExpandedCollapsed] = useState<Record<string, boolean>>({});
 
   const latencies = entries.map((e) => e.latency_ms).filter((l) => l > 0);
-  const avgLatency = latencies.length > 0 ? (latencies.reduce((a, b) => a + b, 0) / latencies.length).toFixed(1) : '1.2';
+  const avgLatency =
+    latencies.length > 0
+      ? `${(latencies.reduce((a, b) => a + b, 0) / latencies.length).toFixed(1)} ms`
+      : '-';
 
   const groupedTimeline = groupEntries(entries);
 
@@ -127,7 +130,7 @@ export default function AuditPassbook({ entries }: AuditPassbookProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-[11px] text-[#94A3B8]">
             <Clock size={12} />
-            <span>Avg Overhead: <strong className="text-[#E6EAF2] font-mono-code">{avgLatency} ms</strong></span>
+            <span>Avg Overhead: <strong className="text-[#E6EAF2] font-mono-code">{avgLatency}</strong></span>
           </div>
 
           <button
@@ -144,7 +147,14 @@ export default function AuditPassbook({ entries }: AuditPassbookProps) {
       {/* Timeline Stream */}
       <div className="flex-1 min-h-0 overflow-y-auto px-3.5 py-3 space-y-2.5">
         {groupedTimeline.length === 0 ? (
-          <p className="text-xs text-[#94A3B8] text-center pt-12">No audit entries recorded yet.</p>
+          <div className="h-48 flex flex-col items-center justify-center text-center px-4">
+            <div className="w-10 h-10 rounded-xl bg-[#0B1220] border border-[#1F2A44] flex items-center justify-center text-[#94A3B8] mb-2.5 shadow-xs">
+              <Shield size={20} className="text-[#94A3B8]" />
+            </div>
+            <p className="text-xs text-[#94A3B8] max-w-[200px] leading-relaxed">
+              Every action is logged here, tamper-evident.
+            </p>
+          </div>
         ) : (
           groupedTimeline.map((item) => {
             if (item.type === 'collapsed') {

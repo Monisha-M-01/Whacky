@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { ChatResponse, PendingAction, BlockedAlert, ToolCallResult } from '../api';
 import { api } from '../api';
-import { Mail, Calendar, FileText, Send, Check, X, ShieldAlert, Sparkles, Clock, AlertTriangle } from './Icons';
+import { Mail, Calendar, FileText, Folder, Send, Check, X, ShieldAlert, Sparkles, Clock, AlertTriangle } from './Icons';
 
 interface ChatEntry {
   id: number;
@@ -15,21 +15,21 @@ interface ChatEntry {
 const STARTER_CARDS = [
   {
     title: 'Check bills & set reminders',
-    subtitle: 'Checks Gmail for pending bills and drafts necessary actions',
+    subtitle: 'Finds due bills, drafts reminders',
     prompt: 'Check upcoming bills, add calendar reminder & draft Netflix cancellation',
-    icon: <Mail size={18} className="text-[#3B82F6]" />,
-  },
-  {
-    title: 'Summarize my latest invoice',
-    subtitle: 'Inspects recent invoices with real-time prompt-injection defense',
-    prompt: 'Summarize my latest invoice email',
     icon: <Calendar size={18} className="text-[#3B82F6]" />,
   },
   {
-    title: 'Organize my receipts',
-    subtitle: 'Views local receipts with automated PII & national ID masking',
-    prompt: 'Read rent_receipt.pdf',
+    title: 'Summarize my latest invoice',
+    subtitle: 'Reads it safely, flags anything odd',
+    prompt: 'Summarize my latest invoice email',
     icon: <FileText size={18} className="text-[#3B82F6]" />,
+  },
+  {
+    title: 'Organize my receipts',
+    subtitle: 'Sorts local receipts, hides personal data',
+    prompt: 'Read rent_receipt.pdf',
+    icon: <Folder size={18} className="text-[#3B82F6]" />,
   },
 ];
 
@@ -321,7 +321,7 @@ export default function ChatPanel({ onRefresh }: ChatPanelProps) {
               What can SafePilot do for you today?
             </h3>
             <p className="text-xs text-[#94A3B8] mb-6 max-w-md">
-              Ask SafePilot to assist with everyday personal admin tasks. Every tool call is gated by sub-millisecond cryptographic safety policies.
+              Every action is checked by a safety gateway before it runs.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">

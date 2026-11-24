@@ -97,8 +97,8 @@ export default function App() {
   const latencies = state!.audit_log.map((e) => e.latency_ms).filter((l) => l > 0);
   const avgOverhead =
     latencies.length > 0
-      ? (latencies.reduce((a, b) => a + b, 0) / latencies.length).toFixed(1)
-      : '0.0';
+      ? `${(latencies.reduce((a, b) => a + b, 0) / latencies.length).toFixed(1)} ms`
+      : '-';
 
   const isWritesLocked = state!.kill_switch_active ?? false;
 
@@ -157,7 +157,7 @@ export default function App() {
             <Clock size={12} className="text-[#94A3B8]" />
             <span className="text-[#94A3B8]">Overhead:</span>
             <span className="text-[#22C55E] font-semibold font-mono-code text-[11px]">
-              {avgOverhead} ms
+              {avgOverhead}
             </span>
           </div>
         </div>
@@ -212,6 +212,7 @@ export default function App() {
           stealthActive={state!.stealth_injection?.active ?? false}
           rugPullActive={state!.rug_pull.active}
           rugPullDetected={state!.rug_pull.detected}
+          killSwitchActive={state!.kill_switch_active ?? false}
           onRefresh={refresh}
         />
         <ChatPanel onRefresh={refresh} />

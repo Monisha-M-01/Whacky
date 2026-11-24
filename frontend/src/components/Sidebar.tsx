@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { AppInfo } from '../api';
 import { api } from '../api';
-import { Mail, Calendar, FileText, ShieldCheck, ShieldAlert, FlaskConical, ChevronDown, ChevronUp, Play, RotateCcw } from './Icons';
+import { Mail, Calendar, FileText, ShieldCheck, ShieldAlert, Lock, FlaskConical, ChevronDown, ChevronUp, Play, RotateCcw } from './Icons';
 
 interface SidebarProps {
   apps: Record<string, AppInfo>;
@@ -9,6 +9,7 @@ interface SidebarProps {
   stealthActive: boolean;
   rugPullActive: boolean;
   rugPullDetected: boolean;
+  killSwitchActive?: boolean;
   onRefresh: () => void;
 }
 
@@ -42,6 +43,7 @@ export default function Sidebar({
   stealthActive,
   rugPullActive,
   rugPullDetected,
+  killSwitchActive = false,
   onRefresh,
 }: SidebarProps) {
   const [loading, setLoading] = useState<string | null>(null);
@@ -49,6 +51,9 @@ export default function Sidebar({
   const [selectedAttack, setSelectedAttack] = useState<'poison' | 'stealth' | 'rugpull'>('poison');
 
   const anyAttackActive = poisonActive || stealthActive || rugPullActive || rugPullDetected;
+  const totalApps = Object.keys(apps).length;
+  const anyTampered = Object.values(apps).some((a) => !a.manifest_valid) || rugPullDetected;
+  const isLocked = killSwitchActive;
 
   const handleScope = async (appId: string, scope: string) => {
     setLoading(appId);
@@ -173,7 +178,7 @@ export default function Sidebar({
                       className={`text-[11px] font-medium py-1 rounded-[6px] transition-all text-center cursor-pointer ${
                         isActive
                           ? 'bg-[#1F2A44] text-[#E6EAF2] font-semibold shadow-xs'
-                          : 'text-[#94A3B8] hover:text-[#E6EAF2]'
+                          : 'text-[#CBD5E1] hover:text-white'
                       }`}
                     >
                       {step.label}
@@ -184,6 +189,37 @@ export default function Sidebar({
             </div>
           );
         })}
+
+        {/* Safety Status Card */}
+        <div
+          className={`rounded-[12px] p-3 border transition-all duration-150 ${
+            isLocked
+              ? 'bg-[#EF4444]/10 border-[#EF4444]/40 text-[#EF4444]'
+              : anyTampered
+              ? 'bg-[#F59E0B]/10 border-[#F59E0B]/40 text-[#F59E0B]'
+              : 'bg-[#22C55E]/10 border-[#22C55E]/30 text-[#22C55E]'
+          }`}
+        >
+          <div className="flex items-center gap-2 mb-1">
+            {isLocked ? (
+              <Lock size={14} className="text-[#EF4444]" />
+            ) : anyTampered ? (
+              <ShieldAlert size={14} className="text-[#F59E0B]" />
+            ) : (
+              <ShieldCheck size={14} className="text-[#22C55E]" />
+            )}
+            <h4 className="text-xs font-semibold uppercase tracking-wider">
+              Safety Status
+            </h4>
+          </div>
+          <p className="text-[11px] font-medium leading-snug">
+            {isLocked
+              ? 'All writes locked: emergency mode active'
+              : anyTampered
+              ? 'Manifest changed: integrity check failed'
+              : `${totalApps} apps verified, manifests pinned, writes gated`}
+          </p>
+        </div>
       </div>
 
       {/* Attack Lab Drawer (Bottom) */}
