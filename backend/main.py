@@ -168,6 +168,13 @@ def reset_kill_switch() -> dict[str, Any]:
     return gateway.reset_kill_switch()
 
 
+@app.post("/api/audit/clear")
+def clear_audit() -> dict[str, Any]:
+    gateway.audit_log.clear()
+    gateway._save_audit_log()
+    return {"status": "cleared", "count": 0}
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # POST /api/simulate/rug-pull
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -420,16 +427,7 @@ def _deterministic_agent(message: str) -> dict[str, Any]:
 
     if not reply_parts:
         reply_parts.append(
-            "👋 Hi! I'm **SafePilot**, your personal admin assistant.\n\n"
-            "Try asking me things like:\n"
-            "- \"Check my emails\"\n"
-            "- \"Check my schedule\"\n"
-            "- \"Check my bills and cancel Netflix\"\n"
-            "- \"Summarize latest invoice\"\n"
-            "- \"Show my files\"\n"
-            "- \"Read rent_receipt.pdf\"\n"
-            "- \"Delete electricity_bill.pdf\"\n"
-            "- \"Draft email to boss@company.com subject 'Leave' body 'Need a day off'\""
+            "SafePilot processed your request through the safety gateway. You can ask me to check bills, inspect invoices, or review receipts."
         )
 
     return {

@@ -98,7 +98,7 @@ export default function App() {
   const avgOverhead =
     latencies.length > 0
       ? (latencies.reduce((a, b) => a + b, 0) / latencies.length).toFixed(1)
-      : '1.2';
+      : '0.0';
 
   const isWritesLocked = state!.kill_switch_active ?? false;
 
@@ -115,7 +115,7 @@ export default function App() {
             <h1 className="text-sm font-bold tracking-tight text-[#E6EAF2]">
               SafePilot
             </h1>
-            <span className="text-[10px] uppercase font-semibold tracking-wider text-[#8B97B1] bg-[#0B1220] px-2 py-0.5 rounded border border-[#1F2A44]">
+            <span className="text-[10px] uppercase font-semibold tracking-wider text-[#94A3B8] bg-[#0B1220] px-2 py-0.5 rounded border border-[#1F2A44]">
               MCP Safety Gateway
             </span>
           </div>
@@ -124,7 +124,7 @@ export default function App() {
         {/* Live Stat Strip */}
         <div className="hidden md:flex items-center gap-5 text-xs">
           <div className="flex items-center gap-1.5">
-            <span className="text-[#8B97B1]">Attacks blocked:</span>
+            <span className="text-[#94A3B8]">Attacks blocked:</span>
             <span
               className={`font-semibold font-mono-code px-2 py-0.5 rounded text-[11px] ${
                 attacksBlocked > 0
@@ -139,7 +139,7 @@ export default function App() {
           <div className="w-px h-4 bg-[#1F2A44]" />
 
           <div className="flex items-center gap-1.5">
-            <span className="text-[#8B97B1]">Approvals pending:</span>
+            <span className="text-[#94A3B8]">Approvals pending:</span>
             <span
               className={`font-semibold font-mono-code px-2 py-0.5 rounded text-[11px] ${
                 approvalsPending > 0
@@ -154,8 +154,8 @@ export default function App() {
           <div className="w-px h-4 bg-[#1F2A44]" />
 
           <div className="flex items-center gap-1.5">
-            <Clock size={12} className="text-[#8B97B1]" />
-            <span className="text-[#8B97B1]">Overhead:</span>
+            <Clock size={12} className="text-[#94A3B8]" />
+            <span className="text-[#94A3B8]">Overhead:</span>
             <span className="text-[#22C55E] font-semibold font-mono-code text-[11px]">
               {avgOverhead} ms
             </span>
@@ -169,18 +169,18 @@ export default function App() {
             disabled={killLoading}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-all ${
               isWritesLocked
-                ? 'bg-[#EF4444]/20 border-[#EF4444] text-[#EF4444] font-bold shadow-xs'
-                : 'bg-[#0B1220] border-[#1F2A44] text-[#8B97B1] hover:text-[#E6EAF2] hover:border-[#2A3B5E]'
+                ? 'bg-[#1F2A44] border-[#3B82F6] text-[#E6EAF2] font-semibold shadow-xs'
+                : 'bg-[#0B1220] border-[#1F2A44] text-[#94A3B8] hover:text-[#E6EAF2] hover:border-[#2A3B5E]'
             }`}
           >
             {isWritesLocked ? (
               <>
-                <Lock size={13} className="text-[#EF4444]" />
+                <Lock size={13} className="text-[#3B82F6]" />
                 <span>Writes: Locked</span>
               </>
             ) : (
               <>
-                <Unlock size={13} className="text-[#8B97B1]" />
+                <Unlock size={13} className="text-[#94A3B8]" />
                 <span>Writes: Unlocked</span>
               </>
             )}

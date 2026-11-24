@@ -45,7 +45,7 @@ export interface AuditEntry {
   timestamp: string;
   server: string;
   tool: string;
-  decision: 'AUTO_ALLOWED' | 'APPROVED' | 'REJECTED' | 'BLOCKED' | 'PENDING_APPROVAL' | 'BLOCKED_TAINT_FLOW' | 'KILL_SWITCH_ACTIVATED';
+  decision: 'AUTO_ALLOWED' | 'APPROVED' | 'REJECTED' | 'BLOCKED' | 'PENDING_APPROVAL' | 'BLOCKED_TAINT_FLOW' | 'KILL_SWITCH_ACTIVATED' | 'KILL_SWITCH_ENGAGED' | 'KILL_SWITCH_RELEASED';
   latency_ms: number;
   sha256_hash: string;
   reason: string;

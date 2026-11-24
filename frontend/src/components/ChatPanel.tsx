@@ -14,7 +14,7 @@ interface ChatEntry {
 
 const STARTER_CARDS = [
   {
-    title: 'Check my bills & set reminders',
+    title: 'Check bills & set reminders',
     subtitle: 'Checks Gmail for pending bills and drafts necessary actions',
     prompt: 'Check upcoming bills, add calendar reminder & draft Netflix cancellation',
     icon: <Mail size={18} className="text-[#3B82F6]" />,
@@ -88,7 +88,7 @@ function HeroApprovalCard({
             <h4 className="text-sm font-semibold text-[#E6EAF2]">
               Action Paused — Your Approval Required
             </h4>
-            <p className="text-[11px] text-[#8B97B1]">
+            <p className="text-[11px] text-[#94A3B8]">
               SafePilot halted execution until you explicitly authorize this change
             </p>
           </div>
@@ -102,15 +102,15 @@ function HeroApprovalCard({
       </div>
 
       {/* Provenance Context / Plain English Reason */}
-      <div className="mb-3 px-3 py-2 rounded-lg bg-[#0B1220]/70 border border-[#1F2A44] text-[12px] text-[#8B97B1]">
+      <div className="mb-3 px-3 py-2 rounded-lg bg-[#0B1220]/70 border border-[#1F2A44] text-[12px] text-[#CBD5E1]">
         <strong className="text-[#E6EAF2] font-medium">Why was this paused? </strong>
         Modifying external state ({pa.tool_name.replace('_', ' ')}) requires personal consent.
         {pa.pii_masked ? (
-          <span className="text-[#22C55E] block mt-0.5">
-            ✓ Privacy Shield active: {pa.redacted_count ?? 1} sensitive field(s) were scrubbed prior to staging.
+          <span className="text-[#22C55E] block mt-1 font-medium">
+            ✓ Privacy Shield active: {pa.redacted_count ?? 1} sensitive field(s) masked before drafting.
           </span>
         ) : (
-          <span className="text-[#8B97B1] block mt-0.5">
+          <span className="text-[#94A3B8] block mt-1">
             Origin: Direct user instruction. No untrusted external overrides detected.
           </span>
         )}
@@ -118,7 +118,7 @@ function HeroApprovalCard({
 
       {/* Diff Preview Box */}
       <div className="mb-3.5">
-        <div className="text-[11px] font-semibold text-[#8B97B1] uppercase tracking-wider mb-1">
+        <div className="text-[11px] font-semibold text-[#94A3B8] uppercase tracking-wider mb-1">
           Pending Action Preview
         </div>
         <pre className="text-[12px] text-[#E6EAF2] bg-[#0B1220] border border-[#1F2A44] rounded-lg p-3 whitespace-pre-wrap font-mono-code leading-relaxed max-h-48 overflow-y-auto">
@@ -320,7 +320,7 @@ export default function ChatPanel({ onRefresh }: ChatPanelProps) {
             <h3 className="text-base font-semibold text-[#E6EAF2] mb-1">
               What can SafePilot do for you today?
             </h3>
-            <p className="text-xs text-[#8B97B1] mb-6 max-w-md">
+            <p className="text-xs text-[#94A3B8] mb-6 max-w-md">
               Ask SafePilot to assist with everyday personal admin tasks. Every tool call is gated by sub-millisecond cryptographic safety policies.
             </p>
 
@@ -338,7 +338,7 @@ export default function ChatPanel({ onRefresh }: ChatPanelProps) {
                   <h4 className="text-xs font-semibold text-[#E6EAF2] mb-1 leading-snug">
                     {card.title}
                   </h4>
-                  <p className="text-[11px] text-[#64748B] leading-tight line-clamp-2">
+                  <p className="text-[11px] text-[#94A3B8] leading-tight line-clamp-2">
                     {card.subtitle}
                   </p>
                 </button>

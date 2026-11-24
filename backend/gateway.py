@@ -249,14 +249,14 @@ class MCPSafetyGateway:
             self.scopes[sid] = SCOPE_READ_ONLY
         t0 = time.perf_counter()
         self._audit(
-            "system", "panic_kill_switch", "KILL_SWITCH_ACTIVATED", t0,
-            reason="🚨 Emergency Panic Kill Switch Activated — All MCP write scopes locked to read_only"
+            "system", "panic_kill_switch", "KILL_SWITCH_ENGAGED", t0,
+            reason="Kill switch engaged: all writes locked"
         )
         return {
             "status": "activated",
             "kill_switch_active": True,
             "scopes": self.scopes,
-            "message": "Emergency Panic Kill Switch Activated — All writes locked.",
+            "message": "Kill switch engaged: all writes locked",
         }
 
     def reset_kill_switch(self) -> dict[str, Any]:
@@ -266,14 +266,14 @@ class MCPSafetyGateway:
             self.scopes[sid] = SCOPE_READ_WRITE_GATED
         t0 = time.perf_counter()
         self._audit(
-            "system", "panic_kill_switch", "APPROVED", t0,
-            reason="Emergency Panic Kill Switch Reset — All write scopes restored to gated mode"
+            "system", "panic_kill_switch", "KILL_SWITCH_RELEASED", t0,
+            reason="Kill switch released: writes restored to gated"
         )
         return {
             "status": "reset",
             "kill_switch_active": False,
             "scopes": self.scopes,
-            "message": "Emergency Kill Switch Reset — Normal gated scopes restored.",
+            "message": "Kill switch released: writes restored to gated",
         }
 
     def reset_taint(self) -> None:
@@ -610,11 +610,11 @@ class MCPSafetyGateway:
         return {"status": "BLOCKED", "reason": reason, "server": server, "tool": tool}
 
     def _load_audit_log(self) -> None:
-        if AUDIT_LOG_PATH.exists():
-            try:
-                self.audit_log = json.loads(AUDIT_LOG_PATH.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, ValueError):
-                self.audit_log = []
+        self.audit_log = []
+        try:
+            AUDIT_LOG_PATH.write_text("[]", encoding="utf-8")
+        except Exception:
+            pass
 
     def _save_audit_log(self) -> None:
         AUDIT_LOG_PATH.write_text(

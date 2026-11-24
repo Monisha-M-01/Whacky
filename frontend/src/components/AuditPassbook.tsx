@@ -16,6 +16,15 @@ function formatTime(ts: string): string {
 }
 
 function getPlainEnglishReason(entry: AuditEntry): string {
+  if (entry.decision === 'KILL_SWITCH_ENGAGED') {
+    return 'Kill switch engaged: all writes locked';
+  }
+  if (entry.decision === 'KILL_SWITCH_RELEASED') {
+    return 'Kill switch released: writes restored to gated';
+  }
+  if (entry.decision === 'KILL_SWITCH_ACTIVATED') {
+    return 'Kill switch engaged: all writes locked';
+  }
   if (entry.decision === 'BLOCKED_TAINT_FLOW') {
     return 'Blocked: Data from untrusted email attempted unauthorized write to unverified destination.';
   }
@@ -39,9 +48,6 @@ function getPlainEnglishReason(entry: AuditEntry): string {
   }
   if (entry.decision === 'PENDING_APPROVAL') {
     return 'Awaiting consent: write operation held for user review.';
-  }
-  if (entry.decision === 'KILL_SWITCH_ACTIVATED') {
-    return 'Emergency kill switch activated: all servers locked to read-only.';
   }
   return 'Allowed: verified read access within security scope.';
 }
@@ -108,7 +114,7 @@ export default function AuditPassbook({ entries }: AuditPassbookProps) {
       {/* Header with Chain Verified Badge & Export */}
       <div className="flex-shrink-0 px-4 pt-4 pb-3 border-b border-[#1F2A44]">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-xs font-semibold text-[#8B97B1] uppercase tracking-wider">
+          <h2 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider">
             Audit Passbook
           </h2>
           {/* Chain Verified Badge */}
@@ -119,14 +125,14 @@ export default function AuditPassbook({ entries }: AuditPassbookProps) {
         </div>
 
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-[11px] text-[#64748B]">
+          <div className="flex items-center gap-1.5 text-[11px] text-[#94A3B8]">
             <Clock size={12} />
             <span>Avg Overhead: <strong className="text-[#E6EAF2] font-mono-code">{avgLatency} ms</strong></span>
           </div>
 
           <button
             onClick={handleExport}
-            className="flex items-center gap-1 text-[11px] font-medium text-[#8B97B1] hover:text-[#E6EAF2] bg-[#0B1220] hover:bg-[#162238] border border-[#1F2A44] rounded-[6px] px-2 py-1 transition-all cursor-pointer"
+            className="flex items-center gap-1 text-[11px] font-medium text-[#94A3B8] hover:text-[#E6EAF2] bg-[#0B1220] hover:bg-[#162238] border border-[#1F2A44] rounded-[6px] px-2 py-1 transition-all cursor-pointer"
             title="Download full JSON audit ledger"
           >
             <Download size={11} />
@@ -138,13 +144,13 @@ export default function AuditPassbook({ entries }: AuditPassbookProps) {
       {/* Timeline Stream */}
       <div className="flex-1 min-h-0 overflow-y-auto px-3.5 py-3 space-y-2.5">
         {groupedTimeline.length === 0 ? (
-          <p className="text-xs text-[#64748B] text-center pt-12">No audit entries recorded yet.</p>
+          <p className="text-xs text-[#94A3B8] text-center pt-12">No audit entries recorded yet.</p>
         ) : (
           groupedTimeline.map((item) => {
             if (item.type === 'collapsed') {
               const isOpen = expandedCollapsed[item.id] ?? false;
               return (
-                <div key={item.id} className="rounded-lg bg-[#0B1220]/60 border border-[#1F2A44] overflow-hidden">
+                <div key={item.id} className="rounded-r-lg rounded-l-none bg-[#0B1220]/50 border border-[#1F2A44] border-l border-l-[#22C55E]/60 opacity-75 hover:opacity-100 transition-opacity overflow-hidden">
                   <button
                     onClick={() => toggleCollapsed(item.id)}
                     className="w-full p-2.5 flex items-center justify-between text-left hover:bg-[#162238]/40 transition-colors cursor-pointer"
@@ -155,7 +161,7 @@ export default function AuditPassbook({ entries }: AuditPassbookProps) {
                         {item.entries.length} reads auto-allowed
                       </span>
                     </div>
-                    <div className="flex items-center gap-1 text-[11px] text-[#64748B]">
+                    <div className="flex items-center gap-1 text-[11px] text-[#94A3B8]">
                       <span className="font-mono-code text-[10px]">{formatTime(item.entries[0].timestamp)}</span>
                       {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                     </div>
@@ -163,11 +169,11 @@ export default function AuditPassbook({ entries }: AuditPassbookProps) {
 
                   {/* Expanded read entries */}
                   {isOpen && (
-                    <div className="px-3 pb-2.5 pt-1 space-y-1.5 border-t border-[#1F2A44]/50 text-[11px] text-[#8B97B1]">
+                    <div className="px-3 pb-2.5 pt-1 space-y-1.5 border-t border-[#1F2A44]/50 text-[11px] text-[#CBD5E1]">
                       {item.entries.map((e, idx) => (
                         <div key={idx} className="flex items-center justify-between font-mono-code text-[10px]">
                           <span>{e.server}.{e.tool}</span>
-                          <span className="text-[#64748B]">{e.latency_ms.toFixed(1)}ms</span>
+                          <span className="text-[#94A3B8]">{e.latency_ms.toFixed(1)}ms</span>
                         </div>
                       ))}
                     </div>
@@ -178,51 +184,76 @@ export default function AuditPassbook({ entries }: AuditPassbookProps) {
 
             const { entry, id } = item;
             const isBlocked = entry.decision === 'BLOCKED' || entry.decision === 'BLOCKED_TAINT_FLOW';
-            const isApproval = entry.decision === 'PENDING_APPROVAL' || entry.decision === 'APPROVED';
+            const isKillSwitch =
+              entry.decision === 'KILL_SWITCH_ENGAGED' ||
+              entry.decision === 'KILL_SWITCH_RELEASED' ||
+              entry.decision === 'KILL_SWITCH_ACTIVATED';
+            const isApproval =
+              entry.decision === 'PENDING_APPROVAL' ||
+              entry.decision === 'APPROVED' ||
+              entry.decision === 'REJECTED';
             const isDetailsOpen = expandedDetails[id] ?? false;
 
-            const borderColor = isBlocked
-              ? 'border-l-[#EF4444]'
+            const cardStyle = isBlocked
+              ? 'opacity-100 bg-[#162238] border-[#EF4444]/40 border-l-4 border-l-[#EF4444] shadow-md'
+              : isKillSwitch
+              ? 'opacity-95 bg-[#111A2B] border-[#1F2A44] border-l-3 border-l-[#3B82F6]'
               : isApproval
-              ? 'border-l-[#F59E0B]'
-              : 'border-l-[#22C55E]';
+              ? 'opacity-100 bg-[#141E33] border-[#1F2A44] border-l-3 border-l-[#F59E0B]'
+              : 'opacity-75 hover:opacity-100 bg-[#0B1220]/50 border-[#1F2A44] border-l border-l-[#22C55E]/60';
 
-            const badgeColor = isBlocked
-              ? 'text-[#EF4444] bg-[#EF4444]/10 border-[#EF4444]/30'
+            const badgeConfig = isBlocked
+              ? {
+                  color: 'text-[#EF4444] bg-[#EF4444]/10 border-[#EF4444]/30',
+                  label: entry.decision === 'BLOCKED_TAINT_FLOW' ? 'TAINT BLOCKED' : 'BLOCKED',
+                }
+              : isKillSwitch
+              ? {
+                  color: 'text-[#60A5FA] bg-[#3B82F6]/15 border-[#3B82F6]/30',
+                  label: 'KILL SWITCH',
+                }
               : isApproval
-              ? 'text-[#F59E0B] bg-[#F59E0B]/10 border-[#F59E0B]/30'
-              : 'text-[#22C55E] bg-[#22C55E]/10 border-[#22C55E]/30';
+              ? {
+                  color: 'text-[#F59E0B] bg-[#F59E0B]/10 border-[#F59E0B]/30',
+                  label: entry.decision.replace('_', ' '),
+                }
+              : {
+                  color: 'text-[#22C55E] bg-[#22C55E]/10 border-[#22C55E]/30',
+                  label: 'AUTO ALLOWED',
+                };
 
             return (
               <div
                 key={id}
-                className={`rounded-r-lg rounded-l-none bg-[#0B1220]/70 border border-[#1F2A44] border-l-3 ${borderColor} p-2.5 transition-all`}
+                className={`group rounded-r-lg rounded-l-none border p-2.5 transition-all ${cardStyle}`}
               >
                 {/* Header row */}
                 <div className="flex items-center justify-between mb-1">
-                  <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${badgeColor}`}>
-                    {entry.decision === 'BLOCKED_TAINT_FLOW' ? 'TAINT BLOCKED' : entry.decision.replace('_', ' ')}
+                  <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${badgeConfig.color}`}>
+                    {badgeConfig.label}
                   </span>
-                  <span className="text-[10px] text-[#64748B] font-mono-code">
+                  <span className="text-[10px] text-[#94A3B8] font-mono-code">
                     {formatTime(entry.timestamp)}
                   </span>
                 </div>
 
                 {/* Target tool */}
                 <p className="text-[12px] font-semibold text-[#E6EAF2] mb-0.5">
-                  <span className="text-[#8B97B1] font-normal">{entry.server} → </span>
+                  <span className="text-[#94A3B8] font-normal">{entry.server} → </span>
                   {entry.tool}
                 </p>
 
                 {/* One-line Plain-English reason */}
-                <p className="text-[11px] text-[#8B97B1] leading-tight line-clamp-2 mb-1.5">
+                <p className="text-[11px] text-[#CBD5E1] leading-tight line-clamp-2 mb-1.5">
                   {getPlainEnglishReason(entry)}
                 </p>
 
-                {/* Expandable Details link */}
+                {/* Expandable Details link — always visible on blocked, hover on others */}
                 <button
                   onClick={() => toggleDetails(id)}
-                  className="flex items-center gap-1 text-[10px] text-[#3B82F6] hover:text-[#60A5FA] cursor-pointer"
+                  className={`flex items-center gap-1 text-[10px] text-[#3B82F6] hover:text-[#60A5FA] cursor-pointer transition-opacity ${
+                    isBlocked || isDetailsOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  }`}
                 >
                   <span>{isDetailsOpen ? 'Hide technical details' : 'View technical details'}</span>
                   {isDetailsOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
@@ -230,14 +261,14 @@ export default function AuditPassbook({ entries }: AuditPassbookProps) {
 
                 {/* Expanded Details Row */}
                 {isDetailsOpen && (
-                  <div className="mt-2 pt-2 border-t border-[#1F2A44] text-[10px] text-[#8B97B1] font-mono-code space-y-1">
+                  <div className="mt-2 pt-2 border-t border-[#1F2A44] text-[10px] text-[#CBD5E1] font-mono-code space-y-1">
                     <div>Latency: <span className="text-[#E6EAF2]">{entry.latency_ms.toFixed(2)} ms</span></div>
                     {entry.sha256_hash && (
                       <div className="truncate" title={entry.sha256_hash}>
-                        Hash: <span className="text-[#64748B]">#{entry.sha256_hash.slice(0, 16)}…</span>
+                        Hash: <span className="text-[#94A3B8]">#{entry.sha256_hash.slice(0, 16)}…</span>
                       </div>
                     )}
-                    <div className="text-[#64748B] font-sans break-words">{entry.reason}</div>
+                    <div className="text-[#94A3B8] font-sans break-words">{entry.reason}</div>
                   </div>
                 )}
               </div>

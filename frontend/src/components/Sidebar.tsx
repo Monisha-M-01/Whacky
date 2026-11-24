@@ -92,10 +92,10 @@ export default function Sidebar({
     <aside className="w-[300px] xl:w-[320px] flex-shrink-0 bg-[#111A2B] border-r border-[#1F2A44] flex flex-col h-full overflow-hidden select-none">
       {/* Sidebar Header */}
       <div className="flex-shrink-0 px-5 pt-4 pb-3 border-b border-[#1F2A44]">
-        <h2 className="text-xs font-semibold text-[#8B97B1] uppercase tracking-wider mb-0.5">
+        <h2 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-0.5">
           Connected Apps
         </h2>
-        <p className="text-[12px] text-[#64748B]">
+        <p className="text-[12px] text-[#94A3B8]">
           Zero-config least privilege controls
         </p>
       </div>
@@ -157,7 +157,7 @@ export default function Sidebar({
                 )}
               </div>
 
-              <p className="text-[11px] text-[#8B97B1] mb-2.5">
+              <p className="text-[11px] text-[#CBD5E1] mb-2.5">
                 {meta.desc}
               </p>
 
@@ -173,7 +173,7 @@ export default function Sidebar({
                       className={`text-[11px] font-medium py-1 rounded-[6px] transition-all text-center cursor-pointer ${
                         isActive
                           ? 'bg-[#1F2A44] text-[#E6EAF2] font-semibold shadow-xs'
-                          : 'text-[#64748B] hover:text-[#8B97B1]'
+                          : 'text-[#94A3B8] hover:text-[#E6EAF2]'
                       }`}
                     >
                       {step.label}
@@ -194,7 +194,7 @@ export default function Sidebar({
           className="w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-[#162238]/40 transition-colors cursor-pointer"
         >
           <div className="flex items-center gap-2">
-            <FlaskConical size={14} className="text-[#8B97B1]" />
+            <FlaskConical size={14} className="text-[#94A3B8]" />
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-semibold text-[#E6EAF2]">Attack Lab</span>
@@ -202,10 +202,10 @@ export default function Sidebar({
                   <span className="w-1.5 h-1.5 rounded-full bg-[#EF4444] animate-pulse" />
                 )}
               </div>
-              <p className="text-[10px] text-[#64748B]">Simulated payloads in sandboxed mailbox</p>
+              <p className="text-[10px] text-[#94A3B8]">Simulated payloads in sandboxed mailbox</p>
             </div>
           </div>
-          <div className="text-[#8B97B1]">
+          <div className="text-[#94A3B8]">
             {labOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
           </div>
         </button>
@@ -213,7 +213,7 @@ export default function Sidebar({
         {/* Collapsible Drawer Content */}
         {labOpen && (
           <div className="px-4 pb-3.5 pt-1 space-y-2 border-t border-[#1F2A44]/50">
-            <label className="block text-[11px] font-medium text-[#8B97B1]">
+            <label className="block text-[11px] font-medium text-[#94A3B8]">
               Select Payload
             </label>
             <select
@@ -246,7 +246,7 @@ export default function Sidebar({
                   onClick={handleResetAllAttacks}
                   disabled={loading === 'attack-reset'}
                   title="Reset all active attacks"
-                  className="px-2.5 py-1.5 text-xs font-medium bg-[#0B1220] hover:bg-[#162238] text-[#8B97B1] hover:text-[#E6EAF2] border border-[#1F2A44] rounded-lg cursor-pointer"
+                  className="px-2.5 py-1.5 text-xs font-medium bg-[#0B1220] hover:bg-[#162238] text-[#94A3B8] hover:text-[#E6EAF2] border border-[#1F2A44] rounded-lg cursor-pointer"
                 >
                   <RotateCcw size={12} />
                 </button>
@@ -254,7 +254,7 @@ export default function Sidebar({
             </div>
 
             {/* Status indicator */}
-            <div className="text-[10px] text-[#8B97B1] pt-0.5">
+            <div className="text-[10px] text-[#94A3B8] pt-0.5">
               Status:{' '}
               {anyAttackActive ? (
                 <span className="text-[#EF4444] font-medium">Attack payload active</span>
