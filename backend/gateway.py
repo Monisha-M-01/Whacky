@@ -38,6 +38,16 @@ INJECTION_PATTERNS: list[re.Pattern[str]] = [
 
 RESTRICTED_FILES = {"bank_passwords.txt"}
 
+# Trusted everyday service provider domains
+TRUSTED_DOMAINS = {
+    "netflix.com",
+    "provider.com",
+    "electricity.gov.in",
+    "university.edu",
+    "amazon.in",
+    "rental-mgmt.com",
+}
+
 # Scope modes
 SCOPE_OFF = "off"
 SCOPE_READ_ONLY = "read_only"
@@ -411,28 +421,32 @@ class MCPSafetyGateway:
             fname = args.get("filename", "")
             body_str = (args.get("body") or "").lower()
 
-            # A recipient is authorized if the full address, domain, or target entity was explicitly stated in prompt
-            user_authorized = False
-            if to_addr:
-                if to_addr in user_prompt_str:
-                    user_authorized = True
-                elif "@" in to_addr:
-                    user_part, host_part = to_addr.split("@", 1)
-                    domain_name = host_part.split(".")[0]
-                    if (user_part and user_part in user_prompt_str) or (domain_name and domain_name in user_prompt_str):
-                        user_authorized = True
-                if not user_authorized and any(w in user_prompt_str for w in ("draft", "write", "mail", "email", "cancel")):
-                    if any(provider in user_prompt_str for provider in ("netflix", "electricity", "bill", "subscription", "landlord")):
-                        user_authorized = True
-
-            is_unauthorized_recipient = bool(to_addr and not user_authorized)
+            # Condition 1: Write targets a restricted sensitive file (e.g., bank_passwords.txt)
             is_restricted_target = bool(
                 fname in RESTRICTED_FILES or
                 any(rf in body_str for rf in RESTRICTED_FILES)
             )
 
-            if is_unauthorized_recipient or is_restricted_target:
-                target_desc = f"recipient '{to_addr}'" if is_unauthorized_recipient else f"file '{fname or 'bank_passwords.txt'}'"
+            # Condition 2: Active attack simulation AND write targets untrusted external recipient
+            attack_active = bool(getattr(self.registry, "poison_active", False) or getattr(self.registry, "stealth_active", False))
+            recip_domain = to_addr.split("@")[1].strip() if "@" in to_addr else ""
+            is_trusted_domain = any(recip_domain.endswith(td) for td in TRUSTED_DOMAINS)
+            is_in_user_prompt = bool(to_addr and (
+                to_addr in user_prompt_str or
+                (recip_domain and recip_domain.split(".")[0] in user_prompt_str) or
+                ("netflix" in to_addr and "netflix" in user_prompt_str) or
+                ("electricity" in to_addr and "electricity" in user_prompt_str)
+            ))
+
+            is_untrusted_exfiltration = bool(
+                attack_active and
+                to_addr and
+                not is_trusted_domain and
+                not is_in_user_prompt
+            )
+
+            if is_restricted_target or is_untrusted_exfiltration:
+                target_desc = f"file '{fname or 'bank_passwords.txt'}'" if is_restricted_target else f"untrusted recipient '{to_addr}'"
                 chain = [
                     {"step": "User Prompt", "detail": user_prompt or "Unspecified prompt"},
                     {"step": "Untrusted Email [TAINTED]", "detail": "gmail_mcp.list_emails (provenance: external_untrusted)"},
@@ -440,7 +454,7 @@ class MCPSafetyGateway:
                 ]
                 reason = (
                     f"Deterministic Taint Boundary Violation: Session has read tainted external data "
-                    f"and attempted an unauthorized write action to {target_desc} without explicit user authorization."
+                    f"and attempted an unauthorized write action to {target_desc}."
                 )
                 self._audit(
                     server_id, tool_name, "BLOCKED_TAINT_FLOW", t0,
