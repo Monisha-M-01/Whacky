@@ -1,24 +1,7 @@
 import { useState } from 'react';
 import type { AppInfo } from '../api';
 import { api } from '../api';
-
-const SCOPE_OPTIONS = [
-  { value: 'off', label: 'Off' },
-  { value: 'read_only', label: 'Read-Only' },
-  { value: 'read_write_gated', label: 'Read + Write (Gated)' },
-];
-
-const APP_ICONS: Record<string, string> = {
-  gmail_mcp: '✉️',
-  calendar_mcp: '📅',
-  files_mcp: '📁',
-};
-
-const APP_LABELS: Record<string, string> = {
-  gmail_mcp: 'Gmail',
-  calendar_mcp: 'Google Calendar',
-  files_mcp: 'Local Files',
-};
+import { Mail, Calendar, FileText, ShieldCheck, ShieldAlert, FlaskConical, ChevronDown, ChevronUp, Play, RotateCcw } from './Icons';
 
 interface SidebarProps {
   apps: Record<string, AppInfo>;
@@ -29,8 +12,43 @@ interface SidebarProps {
   onRefresh: () => void;
 }
 
-export default function Sidebar({ apps, poisonActive, stealthActive, rugPullActive, rugPullDetected, onRefresh }: SidebarProps) {
+const APP_META: Record<string, { label: string; icon: React.ReactNode; desc: string }> = {
+  gmail_mcp: {
+    label: 'Gmail',
+    icon: <Mail size={16} className="text-[#3B82F6]" />,
+    desc: 'Inbox, drafts & outbound messages',
+  },
+  calendar_mcp: {
+    label: 'Google Calendar',
+    icon: <Calendar size={16} className="text-[#3B82F6]" />,
+    desc: 'Event scheduling & daily agendas',
+  },
+  files_mcp: {
+    label: 'Local Files',
+    icon: <FileText size={16} className="text-[#3B82F6]" />,
+    desc: 'Sandboxed documents & receipts',
+  },
+};
+
+const SCOPE_STEPS = [
+  { value: 'off', label: 'Off' },
+  { value: 'read_only', label: 'Read' },
+  { value: 'read_write_gated', label: 'Read+Write' },
+];
+
+export default function Sidebar({
+  apps,
+  poisonActive,
+  stealthActive,
+  rugPullActive,
+  rugPullDetected,
+  onRefresh,
+}: SidebarProps) {
   const [loading, setLoading] = useState<string | null>(null);
+  const [labOpen, setLabOpen] = useState(false);
+  const [selectedAttack, setSelectedAttack] = useState<'poison' | 'stealth' | 'rugpull'>('poison');
+
+  const anyAttackActive = poisonActive || stealthActive || rugPullActive || rugPullDetected;
 
   const handleScope = async (appId: string, scope: string) => {
     setLoading(appId);
@@ -42,30 +60,28 @@ export default function Sidebar({ apps, poisonActive, stealthActive, rugPullActi
     }
   };
 
-  const handlePoison = async () => {
-    setLoading('poison');
+  const handleRunAttack = async () => {
+    setLoading('attack-action');
     try {
-      await api.togglePoison();
+      if (selectedAttack === 'poison') {
+        await api.togglePoison();
+      } else if (selectedAttack === 'stealth') {
+        await api.toggleStealth();
+      } else if (selectedAttack === 'rugpull') {
+        await api.toggleRugPull();
+      }
       onRefresh();
     } finally {
       setLoading(null);
     }
   };
 
-  const handleStealth = async () => {
-    setLoading('stealth');
+  const handleResetAllAttacks = async () => {
+    setLoading('attack-reset');
     try {
-      await api.toggleStealth();
-      onRefresh();
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const handleRugPull = async () => {
-    setLoading('rugpull');
-    try {
-      await api.toggleRugPull();
+      if (poisonActive) await api.togglePoison();
+      if (stealthActive) await api.toggleStealth();
+      if (rugPullActive || rugPullDetected) await api.toggleRugPull();
       onRefresh();
     } finally {
       setLoading(null);
@@ -73,139 +89,181 @@ export default function Sidebar({ apps, poisonActive, stealthActive, rugPullActi
   };
 
   return (
-    <aside className="w-72 xl:w-80 flex-shrink-0 bg-navy-light border-r border-navy-lighter flex flex-col h-screen overflow-hidden">
-      {/* Header */}
-      <div className="flex-shrink-0 px-4 pt-4 pb-2.5 border-b border-navy-lighter/60">
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-xl">🛡️</span>
-          <h1 className="text-base font-bold text-white tracking-tight">SafePilot</h1>
-          <span className="text-[10px] uppercase font-bold tracking-wider bg-primary/20 text-primary-light px-1.5 py-0.5 rounded ml-auto">
-            Gateway
-          </span>
-        </div>
-        <p className="text-[11px] text-slate-400">Connected Apps (Zero-Config)</p>
+    <aside className="w-[300px] xl:w-[320px] flex-shrink-0 bg-[#111A2B] border-r border-[#1F2A44] flex flex-col h-full overflow-hidden select-none">
+      {/* Sidebar Header */}
+      <div className="flex-shrink-0 px-5 pt-4 pb-3 border-b border-[#1F2A44]">
+        <h2 className="text-xs font-semibold text-[#8B97B1] uppercase tracking-wider mb-0.5">
+          Connected Apps
+        </h2>
+        <p className="text-[12px] text-[#64748B]">
+          Zero-config least privilege controls
+        </p>
       </div>
 
-      {/* App cards scroll area */}
-      <div className="flex-1 min-h-0 px-3.5 py-3 space-y-2.5 overflow-y-auto">
+      {/* App Cards List */}
+      <div className="flex-1 min-h-0 px-4 py-3 space-y-3 overflow-y-auto">
         {Object.entries(apps).map(([appId, info]) => {
-          const isMismatch = !info.manifest_valid;
+          const meta = APP_META[appId] ?? {
+            label: info.display_name,
+            icon: <FileText size={16} className="text-[#3B82F6]" />,
+            desc: 'MCP Tool Server',
+          };
+          const isTampered = !info.manifest_valid;
+
           return (
             <div
               key={appId}
-              className={`rounded-xl p-3 border transition-all ${
-                isMismatch
-                  ? 'bg-red-950/40 border-danger/60 ring-1 ring-danger/30'
-                  : 'bg-white/[0.04] border-white/[0.06] hover:border-white/[0.12]'
+              className={`rounded-[12px] p-3.5 border transition-all duration-150 ${
+                isTampered
+                  ? 'bg-[#EF4444]/10 border-[#EF4444]/50 shadow-sm'
+                  : 'bg-[#162238]/60 border-[#1F2A44] hover:border-[#2A3B5E]'
               }`}
             >
-              {/* App title row */}
-              <div className="flex items-center justify-between mb-2">
+              {/* App Identity Row */}
+              <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">{APP_ICONS[appId] ?? '📦'}</span>
-                  <span className="font-semibold text-xs text-white">
-                    {APP_LABELS[appId] ?? info.display_name}
-                  </span>
+                  <div className="w-7 h-7 rounded-lg bg-[#0B1220] border border-[#1F2A44] flex items-center justify-center">
+                    {meta.icon}
+                  </div>
+                  <div>
+                    <h3 className="text-[13px] font-semibold text-[#E6EAF2] leading-tight">
+                      {meta.label}
+                    </h3>
+                  </div>
                 </div>
-                {isMismatch ? (
-                  <span className="flex items-center gap-1 text-[10px] font-bold text-danger bg-danger/15 px-2 py-0.5 rounded-full uppercase tracking-wide">
-                    <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
-                    Tampered
-                  </span>
+
+                {/* Verified Shield Badge with Tooltip */}
+                {isTampered ? (
+                  <div
+                    className="flex items-center gap-1 text-[10px] font-semibold text-[#EF4444] bg-[#EF4444]/15 px-2 py-0.5 rounded-full border border-[#EF4444]/30"
+                    title={`Manifest Hash Mismatch!\nCurrent: ${info.current_sha256}\nPinned: ${info.pinned_sha256}`}
+                  >
+                    <ShieldAlert size={12} />
+                    <span>Mismatch</span>
+                  </div>
                 ) : (
-                  <span className="flex items-center gap-1 text-[10px] font-medium text-safe bg-safe/15 px-2 py-0.5 rounded-full">
-                    <span className="w-1.5 h-1.5 rounded-full bg-safe" />
-                    Verified
-                  </span>
+                  <div
+                    className="group relative flex items-center gap-1 text-[10px] font-medium text-[#22C55E] bg-[#22C55E]/10 px-2 py-0.5 rounded-full border border-[#22C55E]/20 cursor-help"
+                  >
+                    <ShieldCheck size={12} />
+                    <span>✓ Verified</span>
+
+                    {/* Monospace SHA-256 Tooltip on Hover */}
+                    <div className="absolute right-0 top-full mt-1.5 hidden group-hover:flex z-50 flex-col w-56 p-2 bg-[#0B1220] border border-[#1F2A44] rounded-lg shadow-xl text-[10px] text-[#8B97B1] font-mono-code break-all pointer-events-none">
+                      <span className="text-[#E6EAF2] font-sans font-semibold mb-1">SHA-256 Manifest Pin</span>
+                      <span className="text-[#22C55E]">{info.pinned_sha256}</span>
+                    </div>
+                  </div>
                 )}
               </div>
 
-              {/* SHA-256 hash */}
-              <div className={`text-[10px] font-mono mb-2 px-2 py-1 rounded ${
-                isMismatch
-                  ? 'bg-danger/15 text-danger-light'
-                  : 'bg-white/[0.04] text-slate-400'
-              }`}>
-                {isMismatch ? (
-                  <span className="font-bold flex items-center gap-1">
-                    <span>🚨</span> HASH MISMATCH — QUARANTINED
-                  </span>
-                ) : (
-                  <span title={info.pinned_sha256}>
-                    SHA-256: {info.pinned_sha256.slice(0, 16)}…
-                  </span>
-                )}
-              </div>
+              <p className="text-[11px] text-[#8B97B1] mb-2.5">
+                {meta.desc}
+              </p>
 
-              {/* Scope selector */}
-              <select
-                value={info.scope}
-                onChange={(e) => handleScope(appId, e.target.value)}
-                disabled={loading === appId}
-                className="w-full text-xs font-medium bg-navy border border-navy-lighter rounded-lg px-2.5 py-1.5 text-slate-300 outline-none focus:border-primary cursor-pointer transition-colors"
-              >
-                {SCOPE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+              {/* 3-Way Segmented Control */}
+              <div className="grid grid-cols-3 p-0.5 bg-[#0B1220] border border-[#1F2A44] rounded-lg">
+                {SCOPE_STEPS.map((step) => {
+                  const isActive = info.scope === step.value;
+                  return (
+                    <button
+                      key={step.value}
+                      onClick={() => handleScope(appId, step.value)}
+                      disabled={loading === appId}
+                      className={`text-[11px] font-medium py-1 rounded-[6px] transition-all text-center cursor-pointer ${
+                        isActive
+                          ? 'bg-[#1F2A44] text-[#E6EAF2] font-semibold shadow-xs'
+                          : 'text-[#64748B] hover:text-[#8B97B1]'
+                      }`}
+                    >
+                      {step.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           );
         })}
       </div>
 
-      {/* Demo Controls - Pinned at bottom */}
-      <div className="flex-shrink-0 px-3.5 py-3 border-t border-navy-lighter bg-navy-light/95">
-        <div className="rounded-xl border border-navy-lighter bg-white/[0.02] p-3">
-          <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-2 flex items-center gap-1.5">
-            <span>⚡</span> Judge Demo Controls
-          </p>
-          <div className="space-y-1.5">
-            <button
-              onClick={handlePoison}
-              disabled={loading === 'poison'}
-              className={`w-full text-xs font-semibold rounded-lg px-3 py-2 border transition-all cursor-pointer text-left flex items-center justify-between ${
-                poisonActive
-                  ? 'bg-danger/20 border-danger text-danger-light shadow-sm'
-                  : 'bg-transparent border-danger/40 text-danger hover:border-danger hover:bg-danger/10'
-              }`}
-            >
-              <span>{poisonActive ? '☠️ Poison Active' : '💉 Poisoned Invoice'}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${poisonActive ? 'bg-danger text-white' : 'bg-danger/15 text-danger'}`}>
-                {poisonActive ? 'Active' : 'Off'}
-              </span>
-            </button>
-            <button
-              onClick={handleStealth}
-              disabled={loading === 'stealth'}
-              className={`w-full text-xs font-semibold rounded-lg px-3 py-2 border transition-all cursor-pointer text-left flex items-center justify-between ${
-                stealthActive
-                  ? 'bg-purple-950/40 border-purple-500 text-purple-300 shadow-sm ring-1 ring-purple-500/30'
-                  : 'bg-transparent border-purple-500/40 text-purple-400 hover:border-purple-500 hover:bg-purple-500/10'
-              }`}
-            >
-              <span>{stealthActive ? '🕵️ Stealth Active' : '🕵️ Stealth Social Attack'}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${stealthActive ? 'bg-purple-500 text-white' : 'bg-purple-500/15 text-purple-300'}`}>
-                {stealthActive ? 'Active' : 'Off'}
-              </span>
-            </button>
-            <button
-              onClick={handleRugPull}
-              disabled={loading === 'rugpull'}
-              className={`w-full text-xs font-semibold rounded-lg px-3 py-2 border transition-all cursor-pointer text-left flex items-center justify-between ${
-                rugPullActive || rugPullDetected
-                  ? 'bg-danger/20 border-danger text-danger-light shadow-sm'
-                  : 'bg-transparent border-danger/40 text-danger hover:border-danger hover:bg-danger/10'
-              }`}
-            >
-              <span>{rugPullActive ? '🛑 Rug-Pull Active' : '🔧 Tool Rug-Pull'}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${rugPullActive || rugPullDetected ? 'bg-danger text-white' : 'bg-danger/15 text-danger'}`}>
-                {rugPullActive || rugPullDetected ? 'Active' : 'Off'}
-              </span>
-            </button>
+      {/* Attack Lab Drawer (Bottom) */}
+      <div className="flex-shrink-0 border-t border-[#1F2A44] bg-[#0E1626]">
+        {/* Drawer Header Toggle */}
+        <button
+          onClick={() => setLabOpen(!labOpen)}
+          className="w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-[#162238]/40 transition-colors cursor-pointer"
+        >
+          <div className="flex items-center gap-2">
+            <FlaskConical size={14} className="text-[#8B97B1]" />
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-[#E6EAF2]">Attack Lab</span>
+                {anyAttackActive && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#EF4444] animate-pulse" />
+                )}
+              </div>
+              <p className="text-[10px] text-[#64748B]">Simulated payloads in sandboxed mailbox</p>
+            </div>
           </div>
-        </div>
+          <div className="text-[#8B97B1]">
+            {labOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+          </div>
+        </button>
+
+        {/* Collapsible Drawer Content */}
+        {labOpen && (
+          <div className="px-4 pb-3.5 pt-1 space-y-2 border-t border-[#1F2A44]/50">
+            <label className="block text-[11px] font-medium text-[#8B97B1]">
+              Select Payload
+            </label>
+            <select
+              value={selectedAttack}
+              onChange={(e) => setSelectedAttack(e.target.value as any)}
+              className="w-full text-xs bg-[#0B1220] border border-[#1F2A44] rounded-lg px-2.5 py-1.5 text-[#E6EAF2] outline-none focus:border-[#3B82F6] cursor-pointer"
+            >
+              <option value="poison">Poisoned Invoice (Prompt Injection)</option>
+              <option value="stealth">Stealth Social Attack (Zero-Keyword)</option>
+              <option value="rugpull">Tool Rug-Pull (Manifest Tampering)</option>
+            </select>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={handleRunAttack}
+                disabled={loading === 'attack-action'}
+                className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold bg-[#1F2A44] hover:bg-[#2A3B5E] text-[#E6EAF2] rounded-lg py-1.5 border border-[#2D3D60] cursor-pointer disabled:opacity-50"
+              >
+                <Play size={12} className="text-[#3B82F6]" />
+                <span>
+                  {selectedAttack === 'poison' && (poisonActive ? 'Remove Poison' : 'Run Attack')}
+                  {selectedAttack === 'stealth' && (stealthActive ? 'Remove Stealth' : 'Run Attack')}
+                  {selectedAttack === 'rugpull' && (rugPullActive || rugPullDetected ? 'Restore Tool' : 'Run Attack')}
+                </span>
+              </button>
+
+              {anyAttackActive && (
+                <button
+                  onClick={handleResetAllAttacks}
+                  disabled={loading === 'attack-reset'}
+                  title="Reset all active attacks"
+                  className="px-2.5 py-1.5 text-xs font-medium bg-[#0B1220] hover:bg-[#162238] text-[#8B97B1] hover:text-[#E6EAF2] border border-[#1F2A44] rounded-lg cursor-pointer"
+                >
+                  <RotateCcw size={12} />
+                </button>
+              )}
+            </div>
+
+            {/* Status indicator */}
+            <div className="text-[10px] text-[#8B97B1] pt-0.5">
+              Status:{' '}
+              {anyAttackActive ? (
+                <span className="text-[#EF4444] font-medium">Attack payload active</span>
+              ) : (
+                <span className="text-[#22C55E] font-medium">Clean sandbox</span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );

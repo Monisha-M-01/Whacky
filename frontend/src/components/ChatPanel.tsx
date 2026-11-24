@@ -1,18 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { ChatResponse, PendingAction, BlockedAlert, ToolCallResult } from '../api';
 import { api } from '../api';
-
-/* ── Quick-start chips ─────────────────────────────────────── */
-
-const QUICK_PROMPTS = [
-  'Check upcoming bills, add calendar reminder & draft Netflix cancellation',
-  'Summarize my latest invoice email',
-  'List my local receipts',
-  'Check my schedule',
-  'Read rent_receipt.pdf',
-];
-
-/* ── Types for chat history ────────────────────────────────── */
+import { Mail, Calendar, FileText, Send, Check, X, ShieldAlert, Sparkles, Clock, AlertTriangle } from './Icons';
 
 interface ChatEntry {
   id: number;
@@ -23,27 +12,60 @@ interface ChatEntry {
   pendingActions?: PendingAction[];
 }
 
-/* ── Sub-components ────────────────────────────────────────── */
+const STARTER_CARDS = [
+  {
+    title: 'Check my bills & set reminders',
+    subtitle: 'Checks Gmail for pending bills and drafts necessary actions',
+    prompt: 'Check upcoming bills, add calendar reminder & draft Netflix cancellation',
+    icon: <Mail size={18} className="text-[#3B82F6]" />,
+  },
+  {
+    title: 'Summarize my latest invoice',
+    subtitle: 'Inspects recent invoices with real-time prompt-injection defense',
+    prompt: 'Summarize my latest invoice email',
+    icon: <Calendar size={18} className="text-[#3B82F6]" />,
+  },
+  {
+    title: 'Organize my receipts',
+    subtitle: 'Views local receipts with automated PII & national ID masking',
+    prompt: 'Read rent_receipt.pdf',
+    icon: <FileText size={18} className="text-[#3B82F6]" />,
+  },
+];
 
-function ToolPill({ tc }: { tc: ToolCallResult }) {
-  const color =
-    tc.result_status === 'AUTO_ALLOWED'
-      ? 'bg-safe/15 text-safe border border-safe/20'
-      : tc.result_status === 'PENDING_APPROVAL'
-      ? 'bg-pending/15 text-pending border border-pending/20'
-      : tc.result_status === 'BLOCKED' || tc.result_status === 'BLOCKED_TAINT_FLOW'
-      ? 'bg-danger/15 text-danger border border-danger/20'
-      : 'bg-primary/15 text-primary-light border border-primary/20';
+/* ── Decision Chips ────────────────────────────────────────── */
+
+function DecisionChip({ tc }: { tc: ToolCallResult }) {
+  if (tc.result_status === 'AUTO_ALLOWED') {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#22C55E] bg-[#22C55E]/10 border border-[#22C55E]/20 px-2.5 py-0.5 rounded-full">
+        <span>✓</span>
+        <span>Read allowed</span>
+        <span className="text-[#22C55E]/70 font-mono-code text-[10px]">({tc.server}.{tc.tool})</span>
+      </span>
+    );
+  }
+  if (tc.result_status === 'PENDING_APPROVAL') {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/25 px-2.5 py-0.5 rounded-full">
+        <span>⏸</span>
+        <span>Awaiting approval</span>
+        <span className="text-[#F59E0B]/70 font-mono-code text-[10px]">({tc.server}.{tc.tool})</span>
+      </span>
+    );
+  }
   return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded-full ${color}`}>
-      <span>{tc.server}.{tc.tool}</span>
-      <span>•</span>
-      <span className="font-bold">{tc.result_status}</span>
+    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/25 px-2.5 py-0.5 rounded-full">
+      <span>✕</span>
+      <span>Blocked</span>
+      <span className="text-[#EF4444]/70 font-mono-code text-[10px]">({tc.server}.{tc.tool})</span>
     </span>
   );
 }
 
-function ApprovalCard({
+/* ── Hero Approval Card ────────────────────────────────────── */
+
+function HeroApprovalCard({
   pa,
   onApprove,
   onReject,
@@ -55,89 +77,119 @@ function ApprovalCard({
   busy: boolean;
 }) {
   return (
-    <div className="border-2 border-pending/60 bg-pending/[0.08] rounded-xl p-3.5 my-2 shadow-sm">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-1.5">
-          <span className="text-pending text-base">✋</span>
-          <h4 className="text-xs font-bold text-white">Action Paused — Your Approval Required</h4>
+    <div className="my-3 p-4 rounded-[12px] bg-[#162238] border-2 border-[#F59E0B]/60 shadow-lg transition-all animate-in fade-in duration-200">
+      {/* Top Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md bg-[#F59E0B]/15 flex items-center justify-center text-[#F59E0B]">
+            <Clock size={14} />
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold text-[#E6EAF2]">
+              Action Paused — Your Approval Required
+            </h4>
+            <p className="text-[11px] text-[#8B97B1]">
+              SafePilot halted execution until you explicitly authorize this change
+            </p>
+          </div>
         </div>
-        <span className="text-[10px] uppercase tracking-wider font-bold bg-pending/20 text-pending-light px-2 py-0.5 rounded-full">
-          Irreversible Write Action
+
+        {/* Risk Badge */}
+        <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full bg-[#F59E0B]/15 text-[#F59E0B] border border-[#F59E0B]/30 flex items-center gap-1">
+          <AlertTriangle size={11} />
+          <span>Irreversible Write Action</span>
         </span>
       </div>
 
-      {/* Privacy Shield Pill if PII was masked */}
-      {pa.pii_masked && (
-        <div className="mb-2.5 flex items-center gap-1.5 text-[10px] font-semibold text-safe bg-safe/10 border border-safe/30 px-2.5 py-1 rounded-md">
-          <span>🛡️</span>
-          <span>Privacy Shield: {pa.redacted_count ?? 1} sensitive field{(pa.redacted_count ?? 1) > 1 ? 's' : ''} masked before drafting</span>
-        </div>
-      )}
+      {/* Provenance Context / Plain English Reason */}
+      <div className="mb-3 px-3 py-2 rounded-lg bg-[#0B1220]/70 border border-[#1F2A44] text-[12px] text-[#8B97B1]">
+        <strong className="text-[#E6EAF2] font-medium">Why was this paused? </strong>
+        Modifying external state ({pa.tool_name.replace('_', ' ')}) requires personal consent.
+        {pa.pii_masked ? (
+          <span className="text-[#22C55E] block mt-0.5">
+            ✓ Privacy Shield active: {pa.redacted_count ?? 1} sensitive field(s) were scrubbed prior to staging.
+          </span>
+        ) : (
+          <span className="text-[#8B97B1] block mt-0.5">
+            Origin: Direct user instruction. No untrusted external overrides detected.
+          </span>
+        )}
+      </div>
 
-      <pre className="text-xs text-slate-200 bg-navy/80 border border-navy-lighter rounded-lg p-3 mb-3 whitespace-pre-wrap font-mono leading-relaxed max-h-48 overflow-y-auto">
-        {pa.diff_preview}
-      </pre>
-      <div className="flex gap-2">
+      {/* Diff Preview Box */}
+      <div className="mb-3.5">
+        <div className="text-[11px] font-semibold text-[#8B97B1] uppercase tracking-wider mb-1">
+          Pending Action Preview
+        </div>
+        <pre className="text-[12px] text-[#E6EAF2] bg-[#0B1220] border border-[#1F2A44] rounded-lg p-3 whitespace-pre-wrap font-mono-code leading-relaxed max-h-48 overflow-y-auto">
+          {pa.diff_preview}
+        </pre>
+      </div>
+
+      {/* Big Action Buttons */}
+      <div className="flex items-center gap-3">
         <button
           onClick={() => onApprove(pa.pending_id)}
           disabled={busy}
-          className="flex-1 text-xs font-bold bg-safe hover:bg-safe-light text-white rounded-lg py-2 transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-sm"
+          className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-[#22C55E] hover:bg-[#16A34A] text-white text-xs font-semibold shadow-sm transition-all cursor-pointer disabled:opacity-50"
         >
-          <span>✓</span> Approve & Execute
+          <Check size={14} />
+          <span>Approve & Execute</span>
         </button>
         <button
           onClick={() => onReject(pa.pending_id)}
           disabled={busy}
-          className="flex-1 text-xs font-bold bg-navy-lighter hover:bg-danger/20 text-slate-300 hover:text-danger-light border border-navy-lighter hover:border-danger/40 rounded-lg py-2 transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+          className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-[#1F2A44] hover:bg-[#2A3B5E] text-[#E6EAF2] hover:text-white text-xs font-semibold border border-[#2D3D60] transition-all cursor-pointer disabled:opacity-50"
         >
-          <span>✕</span> Reject
+          <X size={14} />
+          <span>Deny & Cancel</span>
         </button>
       </div>
     </div>
   );
 }
 
-function ThreatAlert({ alert }: { alert: BlockedAlert }) {
+/* ── Threat Quarantined Card ───────────────────────────────── */
+
+function ThreatAlertCard({ alert }: { alert: BlockedAlert }) {
   return (
-    <div className="border-2 border-danger/60 bg-danger/[0.08] rounded-xl p-3.5 my-2 shadow-sm">
+    <div className="my-3 p-4 rounded-[12px] bg-[#EF4444]/10 border-2 border-[#EF4444]/50 shadow-md">
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-danger text-base animate-pulse">🛑</span>
-        <h4 className="text-xs font-bold text-danger-light">Threat Quarantined</h4>
-      </div>
-      <div className="flex flex-wrap items-center gap-2 mb-2">
-        <span className="font-mono bg-danger/15 text-danger-light px-2 py-0.5 rounded text-[10px] font-semibold border border-danger/30">
-          {alert.server ?? 'unknown'}.{alert.tool ?? 'unknown'}
-        </span>
-        {alert.provenance && (
-          <span className="font-mono bg-navy/60 text-slate-300 px-2 py-0.5 rounded text-[10px] border border-navy-lighter">
-            Source: {alert.provenance === 'untrusted_external_content' || alert.provenance === 'external_untrusted' ? 'Untrusted Email Body [TAINTED]' : alert.provenance}
-          </span>
-        )}
+        <ShieldAlert size={18} className="text-[#EF4444]" />
+        <h4 className="text-xs font-bold text-[#EF4444] uppercase tracking-wider">
+          Threat Quarantined & Blocked
+        </h4>
       </div>
 
-      <p className="text-xs text-danger-light/95 leading-relaxed font-medium bg-danger/10 p-2.5 rounded-lg border border-danger/20 mb-2">
+      <div className="text-xs text-[#E6EAF2] bg-[#0B1220]/70 p-2.5 rounded-lg border border-[#EF4444]/20 mb-2.5">
         {alert.reason}
-      </p>
+      </div>
 
       {/* Visual Provenance Chain */}
       {alert.provenance_chain && alert.provenance_chain.length > 0 && (
-        <div className="pt-2 border-t border-danger/20">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-danger-light/90 mb-1.5 flex items-center gap-1">
-            <span>🔗</span> Deterministic Provenance Chain:
+        <div className="pt-2 border-t border-[#EF4444]/20">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-[#EF4444]/90 mb-1.5">
+            Deterministic Provenance Chain:
           </p>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 text-[10px] font-mono">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 text-[10px] font-mono-code">
             {alert.provenance_chain.map((c, idx) => (
               <div key={idx} className="flex items-center gap-1.5">
-                <div className={`px-2 py-1 rounded border flex flex-col ${
-                  idx === 0 ? 'bg-navy border-slate-600 text-slate-300' :
-                  idx === 1 ? 'bg-amber-950/50 border-amber-500/40 text-amber-300' :
-                  'bg-red-950/70 border-danger text-danger-light font-bold'
-                }`}>
+                <div
+                  className={`px-2.5 py-1.5 rounded-md border flex flex-col ${
+                    idx === 0
+                      ? 'bg-[#0B1220] border-[#1F2A44] text-[#8B97B1]'
+                      : idx === 1
+                      ? 'bg-[#F59E0B]/10 border-[#F59E0B]/30 text-[#F59E0B]'
+                      : 'bg-[#EF4444]/20 border-[#EF4444]/60 text-[#EF4444] font-bold'
+                  }`}
+                >
                   <span className="font-semibold text-[9px] uppercase opacity-75">{c.step}</span>
-                  <span className="truncate max-w-[150px]" title={c.detail}>{c.detail}</span>
+                  <span className="truncate max-w-[140px]" title={c.detail}>
+                    {c.detail}
+                  </span>
                 </div>
                 {idx < alert.provenance_chain!.length - 1 && (
-                  <span className="text-slate-500 hidden sm:inline">→</span>
+                  <span className="text-[#64748B] hidden sm:inline">→</span>
                 )}
               </div>
             ))}
@@ -148,25 +200,23 @@ function ThreatAlert({ alert }: { alert: BlockedAlert }) {
   );
 }
 
-/* ── Main Chat Panel ───────────────────────────────────────── */
+/* ── Main Chat Component ───────────────────────────────────── */
 
 interface ChatPanelProps {
   onRefresh: () => void;
-  killSwitchActive: boolean;
 }
 
-export default function ChatPanel({ onRefresh, killSwitchActive }: ChatPanelProps) {
+export default function ChatPanel({ onRefresh }: ChatPanelProps) {
   const [history, setHistory] = useState<ChatEntry[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [killLoading, setKillLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(0);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [history]);
+  }, [history, sending]);
 
   const send = async (msg: string) => {
     if (!msg.trim() || sending) return;
@@ -191,7 +241,7 @@ export default function ChatPanel({ onRefresh, killSwitchActive }: ChatPanelProp
       const errEntry: ChatEntry = {
         id: ++idRef.current,
         role: 'assistant',
-        text: `❌ Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        text: `Error connecting to gateway: ${err instanceof Error ? err.message : 'Unknown error'}`,
       };
       setHistory((h) => [...h, errEntry]);
     } finally {
@@ -206,7 +256,7 @@ export default function ChatPanel({ onRefresh, killSwitchActive }: ChatPanelProp
       const entry: ChatEntry = {
         id: ++idRef.current,
         role: 'assistant',
-        text: `✅ **Action Approved & Executed** (${res.status})`,
+        text: `Action approved and executed successfully (${res.status}).`,
       };
       setHistory((h) => [...h, entry]);
       setHistory((h) =>
@@ -220,7 +270,7 @@ export default function ChatPanel({ onRefresh, killSwitchActive }: ChatPanelProp
       const entry: ChatEntry = {
         id: ++idRef.current,
         role: 'assistant',
-        text: `❌ Approval failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        text: `Approval failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
       };
       setHistory((h) => [...h, entry]);
     } finally {
@@ -235,7 +285,7 @@ export default function ChatPanel({ onRefresh, killSwitchActive }: ChatPanelProp
       const entry: ChatEntry = {
         id: ++idRef.current,
         role: 'assistant',
-        text: `🚫 **Action Rejected** — write operation was cancelled.`,
+        text: `Action denied. The write operation was safely discarded.`,
       };
       setHistory((h) => [...h, entry]);
       setHistory((h) =>
@@ -249,7 +299,7 @@ export default function ChatPanel({ onRefresh, killSwitchActive }: ChatPanelProp
       const entry: ChatEntry = {
         id: ++idRef.current,
         role: 'assistant',
-        text: `❌ Reject failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        text: `Deny failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
       };
       setHistory((h) => [...h, entry]);
     } finally {
@@ -257,147 +307,138 @@ export default function ChatPanel({ onRefresh, killSwitchActive }: ChatPanelProp
     }
   };
 
-  const handleToggleKillSwitch = async () => {
-    setKillLoading(true);
-    try {
-      if (killSwitchActive) {
-        await api.resetKillSwitch();
-      } else {
-        await api.activateKillSwitch();
-      }
-      onRefresh();
-    } finally {
-      setKillLoading(false);
-    }
-  };
-
   return (
-    <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden">
-      {/* Header */}
-      <div className="flex-shrink-0 px-5 pt-3.5 pb-2.5 border-b border-navy-lighter/60 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-          <h2 className="text-sm font-bold text-white">SafePilot Everyday Assistant</h2>
-          <span className="text-[11px] text-slate-400 hidden sm:inline">• Deterministic MCP Safety Host</span>
-        </div>
-
-        {/* Emergency Panic Kill Switch */}
-        <button
-          onClick={handleToggleKillSwitch}
-          disabled={killLoading}
-          className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
-            killSwitchActive
-              ? 'bg-danger text-white border-danger shadow-md animate-pulse ring-2 ring-danger/40'
-              : 'bg-navy border-danger/40 text-danger hover:bg-danger/10 hover:border-danger'
-          }`}
-          title={killSwitchActive ? 'Click to deactivate kill switch' : 'Emergency kill switch: instantly locks all MCP write operations to read_only'}
-        >
-          <span>{killSwitchActive ? '🚨' : '🔒'}</span>
-          <span>{killLoading ? '...' : killSwitchActive ? 'All Writes Locked (Unlock)' : 'Lock All Writes'}</span>
-        </button>
-      </div>
-
-      {/* Quick-start chips */}
-      <div className="flex-shrink-0 px-5 py-2.5 flex flex-wrap gap-1.5 border-b border-white/[0.04] bg-white/[0.01]">
-        {QUICK_PROMPTS.map((p) => (
-          <button
-            key={p}
-            onClick={() => send(p)}
-            disabled={sending}
-            className="text-[11px] bg-primary/10 hover:bg-primary/20 text-primary-light border border-primary/25 hover:border-primary/50 rounded-full px-3 py-1 transition-all cursor-pointer disabled:opacity-40 text-left leading-snug"
-          >
-            {p}
-          </button>
-        ))}
-      </div>
-
-      {/* Chat stream */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-3.5">
-        {history.length === 0 && (
-          <div className="text-center pt-16">
-            <p className="text-4xl mb-3">🛡️</p>
-            <p className="text-slate-300 font-medium text-sm mb-1">Welcome to SafePilot</p>
-            <p className="text-slate-400 text-xs max-w-md mx-auto">
-              Your everyday personal admin assistant backed by a deterministic MCP Safety Gateway. Click any quick-start chip above or ask below.
+    <div className="flex-1 flex flex-col h-full min-w-0 bg-[#0B1220] overflow-hidden">
+      {/* Messages Stream */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-4">
+        {history.length === 0 ? (
+          /* Empty / Welcome State with 3 Starter Cards */
+          <div className="h-full flex flex-col items-center justify-center max-w-xl mx-auto text-center px-4">
+            <div className="w-12 h-12 rounded-2xl bg-[#111A2B] border border-[#1F2A44] flex items-center justify-center text-[#3B82F6] mb-3 shadow-sm">
+              <Sparkles size={24} />
+            </div>
+            <h3 className="text-base font-semibold text-[#E6EAF2] mb-1">
+              What can SafePilot do for you today?
+            </h3>
+            <p className="text-xs text-[#8B97B1] mb-6 max-w-md">
+              Ask SafePilot to assist with everyday personal admin tasks. Every tool call is gated by sub-millisecond cryptographic safety policies.
             </p>
-          </div>
-        )}
 
-        {history.map((entry) => (
-          <div key={entry.id} className={`flex ${entry.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div
-              className={`max-w-[88%] rounded-2xl px-4 py-3 ${
-                entry.role === 'user'
-                  ? 'bg-primary text-white rounded-br-md shadow-sm'
-                  : 'bg-white/[0.05] border border-white/[0.06] text-slate-200 rounded-bl-md'
-              }`}
-            >
-              {/* Tool pills */}
-              {entry.toolCalls && entry.toolCalls.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {entry.toolCalls.map((tc, i) => (
-                    <ToolPill key={i} tc={tc} />
-                  ))}
-                </div>
-              )}
-
-              {/* Message text */}
-              <div className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">
-                {entry.text.split(/(\*\*.*?\*\*)/g).map((part, i) =>
-                  part.startsWith('**') && part.endsWith('**') ? (
-                    <strong key={i} className="font-bold text-white">
-                      {part.slice(2, -2)}
-                    </strong>
-                  ) : (
-                    <span key={i}>{part}</span>
-                  )
-                )}
-              </div>
-
-              {/* Blocked alerts */}
-              {entry.blockedAlerts?.map((alert, i) => (
-                <ThreatAlert key={`alert-${i}`} alert={alert} />
-              ))}
-
-              {/* Pending approval cards */}
-              {entry.pendingActions?.map((pa) => (
-                <ApprovalCard
-                  key={pa.pending_id}
-                  pa={pa}
-                  onApprove={handleApprove}
-                  onReject={handleReject}
-                  busy={busy}
-                />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
+              {STARTER_CARDS.map((card, i) => (
+                <button
+                  key={i}
+                  onClick={() => send(card.prompt)}
+                  disabled={sending}
+                  className="flex flex-col items-start p-3.5 rounded-[12px] bg-[#111A2B] hover:bg-[#162238] border border-[#1F2A44] hover:border-[#3B82F6]/50 text-left transition-all cursor-pointer group shadow-xs"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-[#0B1220] border border-[#1F2A44] flex items-center justify-center mb-2.5 group-hover:border-[#3B82F6]/40 transition-colors">
+                    {card.icon}
+                  </div>
+                  <h4 className="text-xs font-semibold text-[#E6EAF2] mb-1 leading-snug">
+                    {card.title}
+                  </h4>
+                  <p className="text-[11px] text-[#64748B] leading-tight line-clamp-2">
+                    {card.subtitle}
+                  </p>
+                </button>
               ))}
             </div>
           </div>
-        ))}
+        ) : (
+          history.map((entry) => (
+            <div
+              key={entry.id}
+              className={`flex ${entry.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`max-w-[85%] rounded-[12px] px-4 py-3 ${
+                  entry.role === 'user'
+                    ? 'bg-[#3B82F6] text-white shadow-sm'
+                    : 'bg-[#111A2B] border border-[#1F2A44] text-[#E6EAF2]'
+                }`}
+              >
+                {/* Decision Chips under Assistant Action */}
+                {entry.toolCalls && entry.toolCalls.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2.5">
+                    {entry.toolCalls.map((tc, idx) => (
+                      <DecisionChip key={idx} tc={tc} />
+                    ))}
+                  </div>
+                )}
+
+                {/* Message Prose */}
+                <div className="text-[13px] leading-relaxed whitespace-pre-wrap">
+                  {entry.text.split(/(\*\*.*?\*\*)/g).map((part, i) =>
+                    part.startsWith('**') && part.endsWith('**') ? (
+                      <strong key={i} className="font-semibold text-white">
+                        {part.slice(2, -2)}
+                      </strong>
+                    ) : (
+                      <span key={i}>{part}</span>
+                    )
+                  )}
+                </div>
+
+                {/* Inline Threat Alerts */}
+                {entry.blockedAlerts?.map((alert, idx) => (
+                  <ThreatAlertCard key={`threat-${idx}`} alert={alert} />
+                ))}
+
+                {/* Inline Hero Approval Cards */}
+                {entry.pendingActions?.map((pa) => (
+                  <HeroApprovalCard
+                    key={pa.pending_id}
+                    pa={pa}
+                    onApprove={handleApprove}
+                    onReject={handleReject}
+                    busy={busy}
+                  />
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+
+        {/* Typing indicator */}
+        {sending && (
+          <div className="flex justify-start">
+            <div className="rounded-[12px] px-4 py-3 bg-[#111A2B] border border-[#1F2A44] flex items-center gap-1.5 text-xs text-[#8B97B1]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#3B82F6] animate-bounce" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#3B82F6] animate-bounce [animation-delay:150ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#3B82F6] animate-bounce [animation-delay:300ms]" />
+              <span className="ml-1 text-[11px]">SafePilot is verifying policy rules...</span>
+            </div>
+          </div>
+        )}
+
         <div ref={bottomRef} />
       </div>
 
-      {/* Input bar */}
-      <div className="flex-shrink-0 px-5 py-3 border-t border-navy-lighter bg-navy-light/40">
+      {/* Input Bar */}
+      <div className="flex-shrink-0 px-6 py-3.5 border-t border-[#1F2A44] bg-[#111A2B]/70">
         <form
           onSubmit={(e) => {
             e.preventDefault();
             send(input);
           }}
-          className="flex gap-2"
+          className="flex items-center gap-2 max-w-4xl mx-auto"
         >
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask SafePilot (e.g., 'check my bills and cancel Netflix')…"
+            placeholder="Ask SafePilot to check bills, organize files, or schedule events..."
             disabled={sending}
-            className="flex-1 bg-navy border border-navy-lighter rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder:text-slate-500 outline-none focus:border-primary transition-colors"
+            className="flex-1 bg-[#0B1220] border border-[#1F2A44] rounded-[10px] px-3.5 py-2.5 text-xs text-[#E6EAF2] placeholder:text-[#64748B] outline-none focus:border-[#3B82F6] transition-colors"
           />
           <button
             type="submit"
             disabled={sending || !input.trim()}
-            className="bg-primary hover:bg-primary-light text-white rounded-xl px-4 py-2.5 text-xs sm:text-sm font-semibold transition-colors cursor-pointer disabled:opacity-40"
+            className="bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-[10px] px-4 py-2.5 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40"
           >
-            {sending ? '…' : 'Send'}
+            <Send size={13} />
+            <span>Send</span>
           </button>
         </form>
       </div>
