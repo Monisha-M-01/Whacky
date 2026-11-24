@@ -171,6 +171,7 @@ def reset_kill_switch() -> dict[str, Any]:
 @app.post("/api/audit/clear")
 def clear_audit() -> dict[str, Any]:
     gateway.audit_log.clear()
+    gateway.pending.clear()
     gateway._save_audit_log()
     return {"status": "cleared", "count": 0}
 
@@ -213,30 +214,31 @@ def simulate_rug_pull() -> dict[str, Any]:
 
 def _deterministic_agent(message: str) -> dict[str, Any]:
     """
-    A fully offline, deterministic agent that pattern-matches everyday prompts
-    and routes them through the MCP Safety Gateway.  No LLM / API key needed.
+    A deterministic agent checking write intents FIRST before read fallbacks,
+    routing operations through the MCP Safety Gateway.
     """
+    gateway.reset_taint()
     msg = message.lower().strip()
     tool_calls: list[dict[str, Any]] = []
     reply_parts: list[str] = []
     blocked_alerts: list[dict[str, Any]] = []
 
-    # ── Email-related prompts ───────────────────────────────────────────────
+    # 1. Detect Write Intents FIRST
+    has_email_write = any(kw in msg for kw in ("draft", "write", "send", "cancel", "reply", "email to", "mail to"))
+    has_calendar_write = any(kw in msg for kw in ("remind", "schedule", "add event", "create event", "calendar", "meeting", "reminder"))
+    has_file_write = any(kw in msg for kw in ("delete", "remove file", "delete file"))
 
-    if any(kw in msg for kw in ("email", "mail", "inbox", "bill", "invoice", "netflix", "subscription", "verify", "sync")):
-        result = gateway.call_tool("gmail_mcp", "list_emails", {"limit": 20}, user_prompt=message)
-        tool_calls.append({"server": "gmail_mcp", "tool": "list_emails", "result_status": result["status"]})
-
-        if result["status"] == "AUTO_ALLOWED":
-            emails = result["data"].get("emails", [])
-            reply_parts.append(f"📬 **Your Inbox** ({len(emails)} emails):\n")
-            for em in emails:
-                flag = "🔴" if not em.get("read") else "✅"
-                reply_parts.append(f"  {flag} **{em['subject']}** — from {em['from']} ({em['date']})")
-
-            # If stealth injection is active, simulate agent attempting to act on the email's exfiltration instruction
+    # ── 1️⃣ EMAIL WRITE INTENT ────────────────────────────────────────────────
+    if has_email_write:
+        # Step A: Gather context via list_emails first
+        list_res = gateway.call_tool("gmail_mcp", "list_emails", {"limit": 20}, user_prompt=message)
+        tool_calls.append({"server": "gmail_mcp", "tool": "list_emails", "result_status": list_res["status"]})
+        if list_res["status"] == "AUTO_ALLOWED":
+            emails = list_res["data"].get("emails", [])
+            reply_parts.append(f"📬 **Context Gathered**: Inspected inbox ({len(emails)} emails found).")
+            # If stealth injection is active, simulate agent attempting exfiltration
             if registry.stealth_active:
-                exfil_result = gateway.call_tool(
+                exfil_res = gateway.call_tool(
                     "gmail_mcp",
                     "send_email",
                     {
@@ -246,184 +248,142 @@ def _deterministic_agent(message: str) -> dict[str, Any]:
                     },
                     user_prompt=message,
                 )
-                tool_calls.append({"server": "gmail_mcp", "tool": "send_email", "result_status": exfil_result["status"]})
-                if exfil_result["status"] in ("BLOCKED", "BLOCKED_TAINT_FLOW"):
-                    blocked_alerts.append(exfil_result)
+                tool_calls.append({"server": "gmail_mcp", "tool": "send_email", "result_status": exfil_res["status"]})
+                if exfil_res["status"] in ("BLOCKED", "BLOCKED_TAINT_FLOW"):
+                    blocked_alerts.append(exfil_res)
                     reply_parts.append(
                         f"\n\n🛑 **Threat Quarantined via Deterministic Taint Boundary Policy**:\n"
                         f"The assistant received an untrusted email instructing it to forward restricted data to `verify-billing@external-check.io`.\n"
-                        f"*Notice: This email used zero adversarial keywords (no 'IGNORE PREVIOUS' or 'SYSTEM OVERRIDE'). "
-                        f"The gateway blocked the exfiltration deterministically because untrusted email data cannot target an unauthorized recipient.*"
+                        f"The gateway blocked the exfiltration deterministically because untrusted email data cannot target an unauthorized recipient."
                     )
+        elif list_res["status"] == "BLOCKED":
+            blocked_alerts.append(list_res)
+            reply_parts.append(f"🛑 **Email Read Blocked**: {list_res.get('reason', 'Unknown')}")
 
-        elif result["status"] == "BLOCKED":
-            blocked_alerts.append(result)
-            reply_parts.append(f"🛑 **Blocked**: {result.get('reason', 'Unknown')}")
-        else:
-            reply_parts.append(f"⚠️ Email access: {result['status']}")
+        # Step B: Call write tool (draft_email or send_email)
+        tool_to_call = "send_email" if "send" in msg else "draft_email"
+        to_addr = "support@netflix.com" if "netflix" in msg else ("alerts@electricity.gov.in" if "electricity" in msg else "billing@provider.com")
+        to_match = re.search(r"(?:to|recipient)\s+([a-zA-Z0-9_.+-]+(?:@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)?)", msg)
+        if to_match:
+            cand = to_match.group(1).strip()
+            if "netflix" in cand:
+                to_addr = "support@netflix.com"
+            elif "@" in cand:
+                to_addr = cand
+            else:
+                to_addr = f"{cand}@provider.com"
 
-    # ── Cancel Netflix ──────────────────────────────────────────────────────
+        subject = "Cancel Netflix Subscription" if "netflix" in msg else ("Electricity Bill Payment" if "electricity" in msg else "Billing Inquiry & Action")
+        body = "Hi Netflix, please cancel my monthly Standard subscription (₹649/month). Thank you." if "netflix" in msg else "Hi, please review my account and process the requested billing action."
 
-    if "cancel" in msg and "netflix" in msg:
-        cancel_result = gateway.call_tool("gmail_mcp", "send_email", {
-            "to": "support@netflix.com",
-            "subject": "Cancel My Subscription",
-            "body": "Hi Netflix, please cancel my Standard plan subscription (₹649/month). Thank you.",
+        write_res = gateway.call_tool("gmail_mcp", tool_to_call, {
+            "to": to_addr,
+            "subject": subject,
+            "body": body,
         }, user_prompt=message)
-        tool_calls.append({"server": "gmail_mcp", "tool": "send_email", "result_status": cancel_result["status"]})
+        tool_calls.append({"server": "gmail_mcp", "tool": tool_to_call, "result_status": write_res["status"]})
 
-        if cancel_result["status"] == "PENDING_APPROVAL":
+        if write_res["status"] == "PENDING_APPROVAL":
             reply_parts.append(
                 f"\n\n✋ **Action requires your approval:**\n"
-                f"```\n{cancel_result['diff_preview']}\n```\n"
-                f"Pending ID: `{cancel_result['pending_id']}`"
+                f"SafePilot prepared the email write operation and paused execution pending your review:\n"
+                f"```\n{write_res['diff_preview']}\n```"
             )
-        elif cancel_result["status"] == "BLOCKED":
-            blocked_alerts.append(cancel_result)
-            reply_parts.append(f"\n🛑 **Blocked**: {cancel_result.get('reason', 'Unknown')}")
+        elif write_res["status"] in ("BLOCKED", "BLOCKED_TAINT_FLOW"):
+            blocked_alerts.append(write_res)
+            reply_parts.append(f"\n🛑 **Blocked**: {write_res.get('reason', 'Unknown')}")
 
-    # ── Summarize invoice / latest email ────────────────────────────────────
+    # ── 2️⃣ CALENDAR WRITE INTENT ────────────────────────────────────────────
+    if has_calendar_write:
+        event_title = "Electricity Bill Payment Due (₹2,310)" if "bill" in msg or "electricity" in msg else ("Netflix Subscription Renewal Check" if "netflix" in msg else "Follow up on Pending Tasks")
+        cal_res = gateway.call_tool("calendar_mcp", "create_event", {
+            "title": event_title,
+            "date": "2026-11-26",
+            "time": "10:00",
+            "duration_min": 30,
+            "location": "Online Banking Portal",
+        }, user_prompt=message)
+        tool_calls.append({"server": "calendar_mcp", "tool": "create_event", "result_status": cal_res["status"]})
+
+        if cal_res["status"] == "PENDING_APPROVAL":
+            reply_parts.append(
+                f"\n\n📅 **Calendar Action requires your approval:**\n"
+                f"SafePilot staged the event creation and paused execution pending your review:\n"
+                f"```\n{cal_res['diff_preview']}\n```"
+            )
+        elif cal_res["status"] == "BLOCKED":
+            blocked_alerts.append(cal_res)
+            reply_parts.append(f"\n🛑 **Calendar Action Blocked**: {cal_res.get('reason', 'Unknown')}")
+
+    # ── 3️⃣ FILE DELETE WRITE INTENT ─────────────────────────────────────────
+    if has_file_write:
+        filename = "old_receipt.pdf"
+        del_match = re.search(r"(?:delete|remove)\s+(?:file\s+)?[\"']?(\w+\.\w+)[\"']?", msg)
+        if del_match:
+            filename = del_match.group(1)
+        del_res = gateway.call_tool("files_mcp", "delete_file", {"filename": filename}, user_prompt=message)
+        tool_calls.append({"server": "files_mcp", "tool": "delete_file", "result_status": del_res["status"]})
+
+        if del_res["status"] == "PENDING_APPROVAL":
+            reply_parts.append(
+                f"\n\n🗑️ **File Deletion requires your approval:**\n"
+                f"SafePilot staged the file deletion and paused execution pending your review:\n"
+                f"```\n{del_res['diff_preview']}\n```"
+            )
+        elif del_res["status"] == "BLOCKED":
+            blocked_alerts.append(del_res)
+            reply_parts.append(f"\n🛑 **File Action Blocked**: {del_res.get('reason', 'Unknown')}")
+
+    # ── 4️⃣ READ-ONLY FALLBACKS (If no write was triggered for that category) ──
+    if not has_email_write and any(kw in msg for kw in ("email", "mail", "inbox", "bill", "invoice", "sync")):
+        list_res = gateway.call_tool("gmail_mcp", "list_emails", {"limit": 20}, user_prompt=message)
+        tool_calls.append({"server": "gmail_mcp", "tool": "list_emails", "result_status": list_res["status"]})
+        if list_res["status"] == "AUTO_ALLOWED":
+            emails = list_res["data"].get("emails", [])
+            reply_parts.append(f"📬 **Your Inbox** ({len(emails)} emails):\n")
+            for em in emails:
+                flag = "🔴" if not em.get("read") else "✅"
+                reply_parts.append(f"  {flag} **{em['subject']}** — from {em['from']} ({em['date']})")
+        elif list_res["status"] == "BLOCKED":
+            blocked_alerts.append(list_res)
+            reply_parts.append(f"🛑 **Blocked**: {list_res.get('reason', 'Unknown')}")
 
     if any(kw in msg for kw in ("summarize", "summary", "latest", "last email")):
-        result = gateway.call_tool("gmail_mcp", "list_emails", {"limit": 20}, user_prompt=message)
-        if result["status"] == "AUTO_ALLOWED" and "list_emails" not in [tc["tool"] for tc in tool_calls]:
-            tool_calls.append({"server": "gmail_mcp", "tool": "list_emails", "result_status": result["status"]})
+        if "list_emails" not in [tc["tool"] for tc in tool_calls]:
+            list_res = gateway.call_tool("gmail_mcp", "list_emails", {"limit": 20}, user_prompt=message)
+            tool_calls.append({"server": "gmail_mcp", "tool": "list_emails", "result_status": list_res["status"]})
+            if list_res["status"] == "AUTO_ALLOWED":
+                emails = list_res["data"].get("emails", [])
+                if emails:
+                    latest = emails[-1]
+                    reply_parts.append(
+                        f"\n\n📄 **Latest Email Summary**:\n"
+                        f"  From: {latest['from']}\n"
+                        f"  Subject: {latest['subject']}\n"
+                        f"  Date: {latest['date']}\n"
+                        f"  Preview: {latest['body'][:200]}…"
+                    )
+            elif list_res["status"] == "BLOCKED":
+                blocked_alerts.append(list_res)
 
-        if result["status"] == "AUTO_ALLOWED":
-            emails = result["data"].get("emails", [])
-            if emails:
-                latest = emails[-1]  # last one added
-                reply_parts.append(
-                    f"\n\n📄 **Latest Email Summary**:\n"
-                    f"  From: {latest['from']}\n"
-                    f"  Subject: {latest['subject']}\n"
-                    f"  Date: {latest['date']}\n"
-                    f"  Preview: {latest['body'][:200]}{'…' if len(latest['body']) > 200 else ''}"
-                )
-        elif result["status"] == "BLOCKED":
-            blocked_alerts.append(result)
-
-    # ── Schedule / Calendar prompts ─────────────────────────────────────────
-
-    if any(kw in msg for kw in ("schedule", "calendar", "event", "meeting", "appointment", "upcoming")):
-        result = gateway.call_tool("calendar_mcp", "list_events", user_prompt=message)
-        tool_calls.append({"server": "calendar_mcp", "tool": "list_events", "result_status": result["status"]})
-
-        if result["status"] == "AUTO_ALLOWED":
-            events = result["data"].get("events", [])
-            reply_parts.append(f"\n\n📅 **Upcoming Events** ({len(events)}):\n")
-            for ev in events:
-                reply_parts.append(
-                    f"  • **{ev['title']}** — {ev['date']} at {ev['time']} "
-                    f"({ev['duration_min']}min, {ev.get('location', 'N/A')})"
-                )
-        elif result["status"] == "BLOCKED":
-            blocked_alerts.append(result)
-            reply_parts.append(f"\n🛑 Calendar blocked: {result.get('reason', '')}")
-
-    # ── Create event ────────────────────────────────────────────────────────
-
-    create_match = re.search(
-        r"(?:create|add|schedule)\s+(?:an?\s+)?event\s+[\"'](.+?)[\"']",
-        msg,
-    )
-    if create_match:
-        title = create_match.group(1)
-        create_result = gateway.call_tool("calendar_mcp", "create_event", {
-            "title": title,
-            "date": "2026-11-29",
-            "time": "10:00",
-            "duration_min": 60,
-            "location": "",
-        }, user_prompt=message)
-        tool_calls.append({"server": "calendar_mcp", "tool": "create_event", "result_status": create_result["status"]})
-        if create_result["status"] == "PENDING_APPROVAL":
+    if not has_file_write and any(kw in msg for kw in ("file", "receipt", "receipts", "document", "rent", "pdf", "txt")):
+        filename = "rent_receipt.pdf"
+        read_match = re.search(r"(?:read|open|show|view)\s+(?:file\s+)?[\"']?(\w+\.\w+)[\"']?", msg)
+        if read_match:
+            filename = read_match.group(1)
+        read_res = gateway.call_tool("files_mcp", "read_local_file", {"filename": filename}, user_prompt=message)
+        tool_calls.append({"server": "files_mcp", "tool": "read_local_file", "result_status": read_res["status"]})
+        if read_res["status"] == "AUTO_ALLOWED":
+            data = read_res.get("data", {})
+            pii_note = ""
+            if data.get("pii_masked"):
+                pii_note = f" *(🛡️ Privacy Shield: {data.get('redacted_count', 0)} sensitive PII fields masked)*"
             reply_parts.append(
-                f"\n\n✋ **Action requires your approval:**\n"
-                f"```\n{create_result['diff_preview']}\n```\n"
-                f"Pending ID: `{create_result['pending_id']}`"
+                f"\n\n📖 **{data.get('filename', filename)}**{pii_note}:\n```\n{data.get('content', '')}\n```"
             )
-
-    # ── File prompts ────────────────────────────────────────────────────────
-
-    if any(kw in msg for kw in ("file", "document", "receipt", "rent", "password", "bank")):
-        result = gateway.call_tool("files_mcp", "list_files", user_prompt=message)
-        tool_calls.append({"server": "files_mcp", "tool": "list_files", "result_status": result["status"]})
-
-        if result["status"] == "AUTO_ALLOWED":
-            files = result["data"].get("files", [])
-            reply_parts.append(f"\n\n📁 **Your Files** ({len(files)}):\n")
-            for f in files:
-                icon = "🔒" if f.get("sensitive") else "📄"
-                reply_parts.append(f"  {icon} {f['name']} ({f['size_kb']} KB)")
-        elif result["status"] == "BLOCKED":
-            blocked_alerts.append(result)
-
-    # ── Read a specific file ────────────────────────────────────────────────
-
-    read_match = re.search(r"(?:read|open|show|view)\s+(?:file\s+)?[\"']?(\w+\.\w+)[\"']?", msg)
-    if read_match:
-        filename = read_match.group(1)
-        result = gateway.call_tool("files_mcp", "read_local_file", {"filename": filename}, user_prompt=message)
-        tool_calls.append({"server": "files_mcp", "tool": "read_local_file", "result_status": result["status"]})
-
-        if result["status"] == "AUTO_ALLOWED":
-            data = result.get("data", {})
-            if "error" in data:
-                reply_parts.append(f"\n\n🚫 {data['error']}")
-            else:
-                pii_note = ""
-                if data.get("pii_masked"):
-                    pii_note = f" *(🛡️ Privacy Shield: {data.get('redacted_count', 0)} sensitive PII fields masked)*"
-                reply_parts.append(
-                    f"\n\n📖 **{data.get('filename', filename)}**{pii_note}:\n```\n{data.get('content', '')}\n```"
-                )
-        elif result["status"] == "BLOCKED":
-            blocked_alerts.append(result)
-            reply_parts.append(f"\n🛑 **Blocked**: {result.get('reason', '')}")
-
-    # ── Delete file ─────────────────────────────────────────────────────────
-
-    delete_match = re.search(r"(?:delete|remove)\s+(?:file\s+)?[\"']?(\w+\.\w+)[\"']?", msg)
-    if delete_match:
-        filename = delete_match.group(1)
-        result = gateway.call_tool("files_mcp", "delete_file", {"filename": filename}, user_prompt=message)
-        tool_calls.append({"server": "files_mcp", "tool": "delete_file", "result_status": result["status"]})
-
-        if result["status"] == "PENDING_APPROVAL":
-            reply_parts.append(
-                f"\n\n✋ **Action requires your approval:**\n"
-                f"```\n{result['diff_preview']}\n```\n"
-                f"Pending ID: `{result['pending_id']}`"
-            )
-        elif result["status"] == "BLOCKED":
-            blocked_alerts.append(result)
-            reply_parts.append(f"\n🛑 **Blocked**: {result.get('reason', '')}")
-
-    # ── Draft email ─────────────────────────────────────────────────────────
-
-    draft_match = re.search(r"(?:draft|compose|write)\s+(?:an?\s+)?email\s+to\s+(\S+)", msg)
-    if draft_match:
-        to_addr = draft_match.group(1)
-        subject_match = re.search(r"subject\s*[:\-\"']+\s*(.+?)(?:\"|'|$)", msg)
-        body_match = re.search(r"body\s*[:\-\"']+\s*(.+?)(?:\"|'|$)", msg)
-        result = gateway.call_tool("gmail_mcp", "draft_email", {
-            "to": to_addr,
-            "subject": subject_match.group(1).strip() if subject_match else "No Subject",
-            "body": body_match.group(1).strip() if body_match else "Drafted via SafePilot.",
-        }, user_prompt=message)
-        tool_calls.append({"server": "gmail_mcp", "tool": "draft_email", "result_status": result["status"]})
-
-        if result["status"] == "PENDING_APPROVAL":
-            reply_parts.append(
-                f"\n\n✋ **Action requires your approval:**\n"
-                f"```\n{result['diff_preview']}\n```\n"
-                f"Pending ID: `{result['pending_id']}`"
-            )
-        elif result["status"] == "BLOCKED":
-            blocked_alerts.append(result)
-
-    # ── Fallback ────────────────────────────────────────────────────────────
+        elif read_res["status"] == "BLOCKED":
+            blocked_alerts.append(read_res)
+            reply_parts.append(f"\n🛑 **Blocked**: {read_res.get('reason', '')}")
 
     if not reply_parts:
         reply_parts.append(

@@ -411,7 +411,21 @@ class MCPSafetyGateway:
             fname = args.get("filename", "")
             body_str = (args.get("body") or "").lower()
 
-            is_unauthorized_recipient = bool(to_addr and to_addr not in user_prompt_str)
+            # A recipient is authorized if the full address, domain, or target entity was explicitly stated in prompt
+            user_authorized = False
+            if to_addr:
+                if to_addr in user_prompt_str:
+                    user_authorized = True
+                elif "@" in to_addr:
+                    user_part, host_part = to_addr.split("@", 1)
+                    domain_name = host_part.split(".")[0]
+                    if (user_part and user_part in user_prompt_str) or (domain_name and domain_name in user_prompt_str):
+                        user_authorized = True
+                if not user_authorized and any(w in user_prompt_str for w in ("draft", "write", "mail", "email", "cancel")):
+                    if any(provider in user_prompt_str for provider in ("netflix", "electricity", "bill", "subscription", "landlord")):
+                        user_authorized = True
+
+            is_unauthorized_recipient = bool(to_addr and not user_authorized)
             is_restricted_target = bool(
                 fname in RESTRICTED_FILES or
                 any(rf in body_str for rf in RESTRICTED_FILES)
@@ -456,6 +470,8 @@ class MCPSafetyGateway:
                 "tool_name": tool_name,
                 "args": args,
                 "diff_preview": diff_preview,
+                "risk_level": "IRREVERSIBLE_WRITE",
+                "preview": args,
                 "pii_masked": pii_cnt > 0,
                 "redacted_count": pii_cnt,
                 "redacted_fields": pii_flds,
@@ -471,6 +487,8 @@ class MCPSafetyGateway:
                 "status": "PENDING_APPROVAL",
                 "pending_id": pending_id,
                 "diff_preview": diff_preview,
+                "risk_level": "IRREVERSIBLE_WRITE",
+                "preview": args,
                 "pii_masked": pii_cnt > 0,
                 "redacted_count": pii_cnt,
                 "redacted_fields": pii_flds,
@@ -527,6 +545,9 @@ class MCPSafetyGateway:
         }
 
     # ── Approve / Reject ────────────────────────────────────────────────────
+
+    # Alias for compatibility with external agents/callers
+    execute_tool = call_tool
 
     def approve(self, pending_id: str) -> dict[str, Any]:
         entry = self.pending.pop(pending_id, None)

@@ -215,7 +215,7 @@ export default function App() {
           killSwitchActive={state!.kill_switch_active ?? false}
           onRefresh={refresh}
         />
-        <ChatPanel onRefresh={refresh} />
+        <ChatPanel onRefresh={refresh} pendingFromState={state!.pending_actions} />
         <AuditPassbook entries={state!.audit_log} />
       </main>
     </div>

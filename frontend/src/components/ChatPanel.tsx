@@ -126,25 +126,37 @@ function HeroApprovalCard({
         </pre>
       </div>
 
-      {/* Big Action Buttons */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => onApprove(pa.pending_id)}
-          disabled={busy}
-          className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-[#22C55E] hover:bg-[#16A34A] text-white text-xs font-semibold shadow-sm transition-all cursor-pointer disabled:opacity-50"
-        >
-          <Check size={14} />
-          <span>Approve & Execute</span>
-        </button>
-        <button
-          onClick={() => onReject(pa.pending_id)}
-          disabled={busy}
-          className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-[#1F2A44] hover:bg-[#2A3B5E] text-[#E6EAF2] hover:text-white text-xs font-semibold border border-[#2D3D60] transition-all cursor-pointer disabled:opacity-50"
-        >
-          <X size={14} />
-          <span>Deny & Cancel</span>
-        </button>
-      </div>
+      {/* Action Buttons or Status Banner */}
+      {pa.status === 'approved' ? (
+        <div className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-[#22C55E]/15 border border-[#22C55E]/40 text-[#22C55E] text-xs font-semibold shadow-xs">
+          <Check size={15} />
+          <span>Executed ✓ (Approved by user)</span>
+        </div>
+      ) : pa.status === 'rejected' ? (
+        <div className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-[#EF4444]/15 border border-[#EF4444]/40 text-[#EF4444] text-xs font-semibold shadow-xs">
+          <X size={15} />
+          <span>Rejected ✕ (Cancelled by user)</span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => onApprove(pa.pending_id)}
+            disabled={busy}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-[#22C55E] hover:bg-[#16A34A] text-white text-xs font-semibold shadow-sm transition-all cursor-pointer disabled:opacity-50"
+          >
+            <Check size={14} />
+            <span>Approve & Execute</span>
+          </button>
+          <button
+            onClick={() => onReject(pa.pending_id)}
+            disabled={busy}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-[#1F2A44] hover:bg-[#2A3B5E] text-[#E6EAF2] hover:text-white text-xs font-semibold border border-[#2D3D60] transition-all cursor-pointer disabled:opacity-50"
+          >
+            <X size={14} />
+            <span>Reject</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -204,9 +216,10 @@ function ThreatAlertCard({ alert }: { alert: BlockedAlert }) {
 
 interface ChatPanelProps {
   onRefresh: () => void;
+  pendingFromState?: PendingAction[];
 }
 
-export default function ChatPanel({ onRefresh }: ChatPanelProps) {
+export default function ChatPanel({ onRefresh, pendingFromState }: ChatPanelProps) {
   const [history, setHistory] = useState<ChatEntry[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -217,6 +230,26 @@ export default function ChatPanel({ onRefresh }: ChatPanelProps) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history, sending]);
+
+  // Sync any pending actions from state that haven't been rendered yet
+  useEffect(() => {
+    if (!pendingFromState || pendingFromState.length === 0) return;
+    const existingIds = new Set(
+      history.flatMap((e) => (e.pendingActions || []).map((p) => p.pending_id))
+    );
+    const newPending = pendingFromState.filter((p) => !existingIds.has(p.pending_id));
+    if (newPending.length > 0) {
+      setHistory((prev) => [
+        ...prev,
+        {
+          id: ++idRef.current,
+          role: 'assistant',
+          text: '✋ **Action Paused** — SafePilot intercepted a write request requiring your authorization:',
+          pendingActions: newPending,
+        },
+      ]);
+    }
+  }, [pendingFromState, history]);
 
   const send = async (msg: string) => {
     if (!msg.trim() || sending) return;
@@ -262,7 +295,9 @@ export default function ChatPanel({ onRefresh }: ChatPanelProps) {
       setHistory((h) =>
         h.map((e) => ({
           ...e,
-          pendingActions: e.pendingActions?.filter((p) => p.pending_id !== pendingId),
+          pendingActions: e.pendingActions?.map((p) =>
+            p.pending_id === pendingId ? { ...p, status: 'approved' as const } : p
+          ),
         }))
       );
       onRefresh();
@@ -285,13 +320,15 @@ export default function ChatPanel({ onRefresh }: ChatPanelProps) {
       const entry: ChatEntry = {
         id: ++idRef.current,
         role: 'assistant',
-        text: `Action denied. The write operation was safely discarded.`,
+        text: `Action rejected. The write operation was safely discarded.`,
       };
       setHistory((h) => [...h, entry]);
       setHistory((h) =>
         h.map((e) => ({
           ...e,
-          pendingActions: e.pendingActions?.filter((p) => p.pending_id !== pendingId),
+          pendingActions: e.pendingActions?.map((p) =>
+            p.pending_id === pendingId ? { ...p, status: 'rejected' as const } : p
+          ),
         }))
       );
       onRefresh();
@@ -299,7 +336,7 @@ export default function ChatPanel({ onRefresh }: ChatPanelProps) {
       const entry: ChatEntry = {
         id: ++idRef.current,
         role: 'assistant',
-        text: `Deny failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        text: `Reject failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
       };
       setHistory((h) => [...h, entry]);
     } finally {

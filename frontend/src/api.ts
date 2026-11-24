@@ -35,10 +35,13 @@ export interface PendingAction {
   tool_name: string;
   args: Record<string, unknown>;
   diff_preview: string;
+  risk_level?: string;
+  preview?: Record<string, unknown>;
   pii_masked?: boolean;
   redacted_count?: number;
   redacted_fields?: string[];
   created_at: string;
+  status?: 'pending' | 'approved' | 'rejected';
 }
 
 export interface AuditEntry {
